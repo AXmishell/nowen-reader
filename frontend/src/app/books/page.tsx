@@ -970,8 +970,8 @@ export default function BooksPage() {
         {!loading && (
           <>
             {/* 书库筛选 + 视图切换 */}
-            <div className="flex items-center justify-between gap-1 sm:gap-1.5 mb-4">
-              <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className="flex min-w-0 items-center justify-between gap-1 sm:gap-1.5 mb-4">
+              <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
                 {/* Library Tabs — accessible library filter */}
                 {visibleLibraries.length > 0 && (
                   <LibraryTabsBar
@@ -987,7 +987,7 @@ export default function BooksPage() {
               </div>
 
               {/* View Toggle — 在此处始终可见 */}
-              <div className="flex items-center rounded-lg border border-border/60 bg-card/50 p-0.5">
+              <div className="flex shrink-0 items-center rounded-lg border border-border/60 bg-card/50 p-0.5">
                 <button
                   onClick={() => setViewMode("grid")}
                   className={`flex h-7 w-7 items-center justify-center rounded-md transition-all duration-200 ${

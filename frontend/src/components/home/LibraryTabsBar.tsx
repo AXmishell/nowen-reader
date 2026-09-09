@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Library, Book, BookOpen, Layers, Check, Settings2, Eye, EyeOff } from "lucide-react";
+import { Library, Book, BookOpen, Layers, Check, Settings2, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Library as LibraryType } from "@/api/libraries";
 
 interface LibraryTabsBarProps {
@@ -38,7 +38,7 @@ function LibraryChip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-200 ${
         active
           ? "bg-accent text-white shadow-sm shadow-accent/25"
           : multiSelected
@@ -181,6 +181,9 @@ export function LibraryTabsBar({
 }: LibraryTabsBarProps) {
   const [multiMode, setMultiMode] = useState(false);
   const [showVisibility, setShowVisibility] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const totalCount = allLibraries
     ? allLibraries.reduce((sum, l) => sum + (l.comicCount ?? 0), 0)
     : libraries.reduce((sum, l) => sum + (l.comicCount ?? 0), 0);
@@ -212,11 +215,44 @@ export function LibraryTabsBar({
     onShowAll?.();
   }, [onShowAll]);
 
+  const checkScroll = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    setCanScrollLeft(element.scrollLeft > 1);
+    setCanScrollRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    checkScroll();
+    element.addEventListener("scroll", checkScroll, { passive: true });
+    const resizeObserver = new ResizeObserver(checkScroll);
+    resizeObserver.observe(element);
+    Array.from(element.children).forEach((child) => resizeObserver.observe(child));
+
+    return () => {
+      element.removeEventListener("scroll", checkScroll);
+      resizeObserver.disconnect();
+    };
+  }, [checkScroll, libraries]);
+
+  const scrollLibraries = (direction: "left" | "right") => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const distance = Math.max(element.clientWidth * 0.65, 200);
+    element.scrollBy({
+      left: direction === "left" ? -distance : distance,
+      behavior: "smooth",
+    });
+  };
+
   if (allLibraries && allLibraries.length <= 1) return null;
   if (libraries.length === 0) return null;
 
   return (
-    <div className="mb-4">
+    <div className="mb-4 min-w-0 w-full">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted/70">
           <Library className="h-3.5 w-3.5" />
@@ -256,30 +292,60 @@ export function LibraryTabsBar({
           )}
         </div>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
-        <LibraryChip
-          label="全部"
-          count={totalCount}
-          icon={Layers}
-          active={isAll}
-          onClick={handleAllClick}
-        />
-        {libraries.map((lib) => {
-          const Icon = typeIcons[lib.type] ?? Library;
-          const selected = selectedIds.includes(lib.id);
-          const active = !multiMode && selectedIds.length === 1 && selected;
-          return (
-            <LibraryChip
-              key={lib.id}
-              label={lib.name}
-              count={lib.comicCount ?? 0}
-              icon={Icon}
-              active={active}
-              multiSelected={multiMode && selected}
-              onClick={() => handleChipClick(lib.id)}
-            />
-          );
-        })}
+      <div className="relative min-w-0">
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => scrollLibraries("left")}
+            className="absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+            aria-label="向左查看更多书库"
+            title="向左查看更多书库"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
+
+        <div
+          ref={scrollRef}
+          className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 scrollbar-hide scroll-smooth"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          <LibraryChip
+            label="全部"
+            count={totalCount}
+            icon={Layers}
+            active={isAll}
+            onClick={handleAllClick}
+          />
+          {libraries.map((lib) => {
+            const Icon = typeIcons[lib.type] ?? Library;
+            const selected = selectedIds.includes(lib.id);
+            const active = !multiMode && selectedIds.length === 1 && selected;
+            return (
+              <LibraryChip
+                key={lib.id}
+                label={lib.name}
+                count={lib.comicCount ?? 0}
+                icon={Icon}
+                active={active}
+                multiSelected={multiMode && selected}
+                onClick={() => handleChipClick(lib.id)}
+              />
+            );
+          })}
+        </div>
+
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollLibraries("right")}
+            className="absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+            aria-label="向右查看更多书库"
+            title="向右查看更多书库"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* 管理显示弹窗 */}
