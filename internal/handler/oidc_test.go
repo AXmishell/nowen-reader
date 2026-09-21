@@ -3,7 +3,10 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/nowen-reader/nowen-reader/internal/config"
 )
@@ -124,5 +127,95 @@ func TestAuthConfigOIDCRequiresIssuerAndClientWhenEnabled(t *testing.T) {
 	}, cookie)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("enabling OIDC without issuer/clientId = %d %s, want 400", w.Code, w.Body.String())
+	}
+}
+
+// TestAbsoluteCallbackURL covers the callback URL shown in the OIDC settings
+// panel: identity providers require an absolute redirect URI, so a
+// base-path-relative path must be completed with the request's scheme and host.
+func TestAbsoluteCallbackURL(t *testing.T) {
+	cases := []struct {
+		name       string
+		path       string
+		host       string
+		proto      string
+		trustProxy bool
+		xfHost     string
+		want       string
+	}{
+		{
+			name: "already absolute is returned unchanged",
+			path: "https://idp.example.com/cb",
+			host: "reader.example.com",
+			want: "https://idp.example.com/cb",
+		},
+		{
+			name: "plain http host",
+			path: "/api/auth/oidc/callback",
+			host: "localhost:6680",
+			want: "http://localhost:6680/api/auth/oidc/callback",
+		},
+		{
+			name:  "https inferred from forwarded proto",
+			path:  "/api/auth/oidc/callback",
+			host:  "reader.example.com",
+			proto: "https",
+			want:  "https://reader.example.com/api/auth/oidc/callback",
+		},
+		{
+			name:  "sub-path deployment keeps the base path",
+			path:  "/reader/api/auth/oidc/callback",
+			host:  "reader.example.com",
+			proto: "https",
+			want:  "https://reader.example.com/reader/api/auth/oidc/callback",
+		},
+		{
+			name:       "forwarded host wins when proxy headers are trusted",
+			path:       "/api/auth/oidc/callback",
+			host:       "internal:6680",
+			proto:      "https",
+			trustProxy: true,
+			xfHost:     "reader.example.com, edge-proxy",
+			want:       "https://reader.example.com/api/auth/oidc/callback",
+		},
+		{
+			name:   "forwarded host ignored when untrusted",
+			path:   "/api/auth/oidc/callback",
+			host:   "internal:6680",
+			proto:  "https",
+			xfHost: "reader.example.com",
+			want:   "https://internal:6680/api/auth/oidc/callback",
+		},
+		{
+			name: "missing host falls back to the raw path",
+			path: "/api/auth/oidc/callback",
+			want: "/api/auth/oidc/callback",
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.trustProxy {
+				t.Setenv("TRUST_PROXY_HEADERS", "true")
+			} else {
+				t.Setenv("TRUST_PROXY_HEADERS", "false")
+			}
+
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Host = tc.host
+			if tc.proto != "" {
+				req.Header.Set("X-Forwarded-Proto", tc.proto)
+			}
+			if tc.xfHost != "" {
+				req.Header.Set("X-Forwarded-Host", tc.xfHost)
+			}
+			c.Request = req
+
+			if got := absoluteCallbackURL(c, tc.path); got != tc.want {
+				t.Fatalf("absoluteCallbackURL(%q) = %q, want %q", tc.path, got, tc.want)
+			}
+		})
 	}
 }

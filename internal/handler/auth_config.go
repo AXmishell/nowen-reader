@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/nowen-reader/nowen-reader/internal/config"
+	"github.com/nowen-reader/nowen-reader/internal/middleware"
 	"github.com/nowen-reader/nowen-reader/internal/service"
 )
 
@@ -17,6 +18,35 @@ type AuthConfigHandler struct{}
 // NewAuthConfigHandler creates a new AuthConfigHandler.
 func NewAuthConfigHandler() *AuthConfigHandler {
 	return &AuthConfigHandler{}
+}
+
+// absoluteCallbackURL turns a base-path-relative URL into an absolute one using
+// the current request's scheme and host, so the admin can copy it straight into
+// the identity provider's redirect-URI allowlist (a bare path is rejected by
+// most providers). An already-absolute URL, or a request without a Host header,
+// is returned unchanged.
+func absoluteCallbackURL(c *gin.Context, path string) string {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+
+	host := c.Request.Host
+	if config.TrustProxyHeaders() {
+		if forwarded := c.GetHeader("X-Forwarded-Host"); forwarded != "" {
+			// X-Forwarded-Host may be a comma-separated chain; the client-facing
+			// host is the first entry.
+			host = strings.TrimSpace(strings.Split(forwarded, ",")[0])
+		}
+	}
+	if host == "" {
+		return path
+	}
+
+	scheme := "http"
+	if middleware.IsRequestSecure(c) {
+		scheme = "https"
+	}
+	return scheme + "://" + host + path
 }
 
 // Get handles GET /api/admin/auth-config. The SMTP password is never returned;
@@ -49,7 +79,7 @@ func (h *AuthConfigHandler) Get(c *gin.Context) {
 			"scopes":          oidc.Scopes,
 			"buttonLabel":     oidc.ButtonLabel,
 			"autoCreateUsers": oidc.AutoCreateUsers,
-			"callbackUrl":     service.OIDCCallbackURL(),
+			"callbackUrl":     absoluteCallbackURL(c, service.OIDCCallbackURL()),
 		},
 		"emailVerificationRequired": config.IsEmailVerificationRequired(),
 		"emailCodeLoginEnabled":     config.IsEmailCodeLoginEnabled(),

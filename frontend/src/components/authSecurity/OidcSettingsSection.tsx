@@ -26,9 +26,15 @@ export function OidcSettingsSection({
   const t = useTranslation();
   const [copyState, setCopyState] = useState<"idle" | "ok" | "error">("idle");
 
+  // 后端可能只返回相对路径（如 /api/auth/oidc/callback）；身份提供商要求绝对地址，
+  // 因此在浏览器侧补全当前域名，保证复制出去的是可直接登记的回调地址。
+  const absoluteCallbackUrl = /^https?:\/\//i.test(callbackUrl)
+    ? callbackUrl
+    : `${typeof window === "undefined" ? "" : window.location.origin}${callbackUrl}`;
+
   const handleCopy = async () => {
     try {
-      await copyToClipboard(callbackUrl);
+      await copyToClipboard(absoluteCallbackUrl);
       setCopyState("ok");
     } catch {
       setCopyState("error");
@@ -132,7 +138,7 @@ export function OidcSettingsSection({
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
             readOnly
-            value={callbackUrl}
+            value={absoluteCallbackUrl}
             aria-label={t.authSecurity?.oidcCallbackUrl || "回调地址（Callback URL）"}
             onFocus={(event) => event.target.select()}
             className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 font-mono text-xs text-muted outline-none"
@@ -140,7 +146,7 @@ export function OidcSettingsSection({
           <button
             type="button"
             onClick={handleCopy}
-            disabled={!callbackUrl}
+            disabled={!absoluteCallbackUrl}
             className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-accent/10 px-4 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
           >
             {copyState === "ok" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
