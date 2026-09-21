@@ -2,7 +2,7 @@ name: Build Android APK (manual)
 
 # 手动触发打包 Android 产物（APK / AAB）。
 # 之所以放在 CI：本地工具链（JDK/NDK/Gradle 版本组合）容易冲突，CI 用固定的
-# JDK 17 + 固定 Flutter 版本 + 预装 Android SDK，产物可复现、可下载。
+# JDK 17 + 固定的 Flutter 版本 + 预装 Android SDK，产物可复现、可下载。
 on:
   workflow_dispatch:
     inputs:
@@ -27,16 +27,13 @@ on:
         required: true
         default: false
         type: boolean
-      flutter_version:
-        description: 'Flutter 版本（需与该版本要求的 NDK 一致，见下方 NDK_VERSION）'
-        required: true
-        default: '3.47.5'
-        type: string
 
 env:
-  # Flutter 3.47.5 的 flutter.ndkVersion；AGP 会校验该 NDK 是否存在，
-  # 因此必须在构建前装好，避免 Gradle 自动下载失败。
-  NDK_VERSION: '28.2.13676358'
+  # 构建所用的 Flutter 版本。固定在此处（不作为手动输入，避免被误填成项目版本号之类
+  # 的非法值）。升级时只改这一处即可 —— NDK 版本会在构建前从该 SDK 动态读取。
+  FLUTTER_VERSION: '3.47.5'
+  # 兜底值：仅当无法从 Flutter SDK 读取到所需 NDK 版本时才使用。
+  NDK_VERSION_FALLBACK: '28.2.13676358'
 
 permissions:
   contents: read
@@ -60,7 +57,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        # AGP 8.13 / Gradle 8.14 不支持 Java 25（Android Studio 自带 JBR 已是 25），
+        # 因此显式使用 JDK 17。
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -68,19 +67,46 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ inputs.flutter_version }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      - name: Install Android NDK
+      - name: Resolve and install the Android NDK required by Flutter
+        id: ndk
         run: |
           set -euo pipefail
           SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-          "$SDKMANAGER" --install "ndk;${NDK_VERSION}"
-          # 回显实际安装的 NDK，便于排查版本不一致
+
+          # Flutter 在 flutter_tools 中声明了它要求的 NDK 版本
+          # （packages/flutter_tools/lib/src/android/gradle_utils.dart: const ndkVersion = '...'）。
+          # 这里动态读取，升级 Flutter 后无需手工同步 NDK 版本。
+          FLUTTER_ROOT_DIR="${FLUTTER_ROOT:-$(dirname "$(dirname "$(command -v flutter)")")}"
+          GRADLE_UTILS="$FLUTTER_ROOT_DIR/packages/flutter_tools/lib/src/android/gradle_utils.dart"
+
+          NDK_REQUIRED=""
+          if [ -f "$GRADLE_UTILS" ]; then
+            NDK_REQUIRED="$(grep -oP "const ndkVersion = '\K[^']+" "$GRADLE_UTILS" | head -n 1 || true)"
+          fi
+
+          if [ -z "$NDK_REQUIRED" ]; then
+            NDK_REQUIRED="${NDK_VERSION_FALLBACK}"
+            echo "::warning::未能从 Flutter SDK 读取 NDK 版本（$GRADLE_UTILS），回退到 ${NDK_REQUIRED}"
+          else
+            echo "[ndk] Flutter ${FLUTTER_VERSION} 要求 NDK: ${NDK_REQUIRED}"
+          fi
+
+          # AGP 会校验该 NDK 是否存在，缺失时构建直接失败，因此提前装好。
+          if [ -d "$SDK/ndk/${NDK_REQUIRED}" ]; then
+            echo "[ndk] 已存在，跳过安装"
+          else
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" --install "ndk;${NDK_REQUIRED}"
+          fi
+
+          echo "[ndk] 当前已安装的 NDK："
           ls -1 "$SDK/ndk"
+          echo "ndk_version=${NDK_REQUIRED}" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: flutter pub get
@@ -121,7 +147,7 @@ jobs:
             echo "- Type: \`${{ inputs.build_type }}\`"
             echo "- Mode: \`${{ inputs.build_mode }}\`"
             echo "- Split per ABI: \`${{ inputs.split_per_abi }}\`"
-            echo "- Flutter: \`${{ inputs.flutter_version }}\`"
-            echo "- NDK: \`${NDK_VERSION}\`"
+            echo "- Flutter: \`${FLUTTER_VERSION}\`"
+            echo "- NDK: \`${{ steps.ndk.outputs.ndk_version }}\`"
             echo "- Artifact: \`nowen-reader-${{ inputs.build_type }}-${{ github.run_number }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
