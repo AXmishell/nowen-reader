@@ -66,6 +66,8 @@ dist/
 .vscode/
 *.swp
 *.swo
+.omo
+.codegraph
 
 # OS
 .DS_Store
