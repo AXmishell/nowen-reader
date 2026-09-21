@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"log"
@@ -36,6 +36,11 @@ type SiteConfigResponse struct {
 	ScraperEnabled      bool     `json:"scraperEnabled"`
 	EbookTypeAutoDetect string   `json:"ebookTypeAutoDetect"` // off | comics | all
 	PdfRendererPath     string   `json:"pdfRendererPath"`     // PDF 渲染外部工具路径
+
+	// 认证策略的公开布尔（不含任何 SMTP 凭据）
+	EmailVerificationRequired bool `json:"emailVerificationRequired"`
+	EmailCodeLoginEnabled     bool `json:"emailCodeLoginEnabled"`
+	SMTPConfigured            bool `json:"smtpConfigured"`
 }
 
 // GET /api/site-settings — Get site settings
@@ -90,6 +95,10 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		ScraperEnabled:      config.IsScraperEnabled(),
 		EbookTypeAutoDetect: cfg.ScannerConfig.EbookAutoDetectMode(),
 		PdfRendererPath:     cfg.PdfRendererPath,
+
+		EmailVerificationRequired: config.IsEmailVerificationRequired(),
+		EmailCodeLoginEnabled:     config.IsEmailCodeLoginEnabled(),
+		SMTPConfigured:            config.IsSMTPEnabled(),
 	}
 
 	if resp.Language == "" {

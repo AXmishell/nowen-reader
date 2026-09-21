@@ -41,6 +41,14 @@ type SiteConfig struct {
 	// StorageThreshold 存储用量预警阈值（数据管理模块）。
 	// 任一字段为 0 表示不启用对应阈值。
 	StorageThreshold *StorageThresholdConfig `json:"storageThreshold,omitempty"`
+
+	// 认证相关配置（邮件 / 双因素 / 单点登录）。
+	SMTP                      *SMTPConfig `json:"smtp,omitempty"`
+	TOTP                      *TOTPConfig `json:"totp,omitempty"`
+	OIDC                      *OIDCConfig `json:"oidc,omitempty"`
+	SMTPEnabled               *bool       `json:"smtpEnabled,omitempty"`               // 邮件功能总开关，默认 false
+	EmailVerificationRequired *bool       `json:"emailVerificationRequired,omitempty"` // 注册后是否必须邮箱验证，默认 false
+	EmailCodeLoginEnabled     *bool       `json:"emailCodeLoginEnabled,omitempty"`     // 是否允许邮箱验证码登录，默认 false
 }
 
 // StorageThresholdConfig 存储用量阈值（单位 MB）
@@ -48,6 +56,35 @@ type StorageThresholdConfig struct {
 	CacheMaxMB    int64 `json:"cacheMaxMB,omitempty"`    // 缓存上限
 	DBMaxMB       int64 `json:"dbMaxMB,omitempty"`       // 数据库上限
 	DiskFreeMinMB int64 `json:"diskFreeMinMB,omitempty"` // 磁盘剩余下限
+}
+
+// SMTPConfig 邮件发送（SMTP）配置，用于邮箱验证与邮件登录。
+type SMTPConfig struct {
+	Host     string `json:"host,omitempty"`
+	Port     int    `json:"port,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	From     string `json:"from,omitempty"`
+	FromName string `json:"fromName,omitempty"`
+	TLSMode  string `json:"tlsMode,omitempty"` // "none" | "starttls" | "ssl"
+}
+
+// TOTPConfig 双因素认证（TOTP）配置。
+type TOTPConfig struct {
+	Enabled           *bool  `json:"enabled,omitempty"`
+	RequiredForAdmins bool   `json:"requiredForAdmins,omitempty"`
+	Issuer            string `json:"issuer,omitempty"`
+}
+
+// OIDCConfig 单点登录（OIDC）配置。
+type OIDCConfig struct {
+	Enabled         *bool  `json:"enabled,omitempty"`
+	IssuerURL       string `json:"issuerUrl,omitempty"`
+	ClientID        string `json:"clientId,omitempty"`
+	ClientSecret    string `json:"clientSecret,omitempty"`
+	Scopes          string `json:"scopes,omitempty"`
+	ButtonLabel     string `json:"buttonLabel,omitempty"`
+	AutoCreateUsers bool   `json:"autoCreateUsers,omitempty"`
 }
 
 // ScanRulesConfig 描述扫描入库后自动执行的"规则流水线"。
@@ -480,6 +517,106 @@ func IsScraperEnabled() bool {
 		return *cfg.ScraperEnabled
 	}
 	return false
+}
+
+// GetSMTP 返回填充缺省值后的 SMTP 配置副本（不返回缓存内部指针）。
+// Port 默认 587；TLSMode 默认 "starttls"（仅接受 none|starttls|ssl）；FromName 默认 "NowenReader"。
+func GetSMTP() SMTPConfig {
+	cfg := loadSiteConfig()
+	out := SMTPConfig{}
+	if cfg.SMTP != nil {
+		out = *cfg.SMTP
+	}
+	if out.Port <= 0 {
+		out.Port = 587
+	}
+	switch mode := strings.ToLower(strings.TrimSpace(out.TLSMode)); mode {
+	case "none", "starttls", "ssl":
+		out.TLSMode = mode
+	default:
+		out.TLSMode = "starttls"
+	}
+	if strings.TrimSpace(out.FromName) == "" {
+		out.FromName = "NowenReader"
+	}
+	return out
+}
+
+// IsSMTPEnabled 返回邮件发送是否启用：开关打开且已配置 SMTP Host 才为 true，默认 false。
+func IsSMTPEnabled() bool {
+	cfg := loadSiteConfig()
+	if cfg.SMTPEnabled == nil || !*cfg.SMTPEnabled {
+		return false
+	}
+	return strings.TrimSpace(GetSMTP().Host) != ""
+}
+
+// IsEmailVerificationRequired 返回注册后是否必须邮箱验证，默认 false。
+func IsEmailVerificationRequired() bool {
+	if v := loadSiteConfig().EmailVerificationRequired; v != nil {
+		return *v
+	}
+	return false
+}
+
+// IsEmailCodeLoginEnabled 返回是否允许邮箱验证码登录，默认 false。
+func IsEmailCodeLoginEnabled() bool {
+	if v := loadSiteConfig().EmailCodeLoginEnabled; v != nil {
+		return *v
+	}
+	return false
+}
+
+// GetTOTP 返回填充缺省值后的 TOTP 配置副本（Enabled 默认 false，Issuer 默认 "NowenReader"）。
+func GetTOTP() TOTPConfig {
+	cfg := loadSiteConfig()
+	out := TOTPConfig{}
+	if cfg.TOTP != nil {
+		out = *cfg.TOTP
+	}
+	if out.Enabled == nil {
+		disabled := false
+		out.Enabled = &disabled
+	}
+	if strings.TrimSpace(out.Issuer) == "" {
+		out.Issuer = "NowenReader"
+	}
+	return out
+}
+
+// IsTOTPEnabled 返回双因素认证是否启用，TOTP 缺省或未开启时为 false。
+func IsTOTPEnabled() bool {
+	totp := loadSiteConfig().TOTP
+	return totp != nil && totp.Enabled != nil && *totp.Enabled
+}
+
+// GetOIDC 返回填充缺省值后的 OIDC 配置副本（Scopes 默认 "openid profile email"，ButtonLabel 默认 "OIDC"）。
+func GetOIDC() OIDCConfig {
+	cfg := loadSiteConfig()
+	out := OIDCConfig{}
+	if cfg.OIDC != nil {
+		out = *cfg.OIDC
+	}
+	if out.Enabled == nil {
+		disabled := false
+		out.Enabled = &disabled
+	}
+	if strings.TrimSpace(out.Scopes) == "" {
+		out.Scopes = "openid profile email"
+	}
+	if strings.TrimSpace(out.ButtonLabel) == "" {
+		out.ButtonLabel = "OIDC"
+	}
+	return out
+}
+
+// IsOIDCEnabled 返回单点登录是否启用：开关打开且 IssuerURL、ClientID 均已配置才为 true。
+func IsOIDCEnabled() bool {
+	oidc := loadSiteConfig().OIDC
+	if oidc == nil || oidc.Enabled == nil || !*oidc.Enabled {
+		return false
+	}
+	return strings.TrimSpace(oidc.IssuerURL) != "" && strings.TrimSpace(oidc.ClientID) != ""
 }
 
 // GetPdfRendererPath 返回用户配置的 PDF 渲染工具路径（目录或可执行文件）。

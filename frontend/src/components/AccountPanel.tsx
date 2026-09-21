@@ -26,6 +26,9 @@ import {
   revokeAPIKey,
   type APIKeyRecord,
 } from "@/api/apiKeys";
+import { EmailSection } from "@/components/account/EmailSection";
+import { TotpSection } from "@/components/account/TotpSection";
+import { OidcSection } from "@/components/account/OidcSection";
 
 export function AccountPanel() {
   const { user, refreshUser } = useAuth();
@@ -57,6 +60,15 @@ export function AccountPanel() {
 
       {/* API 密钥 */}
       <APIKeySection />
+
+      {/* 邮箱 */}
+      <EmailSection />
+
+      {/* 两步验证 */}
+      <TotpSection />
+
+      {/* 单点登录 */}
+      <OidcSection />
     </div>
   );
 }

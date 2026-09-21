@@ -93,7 +93,7 @@ func DeleteUserGroup(id string) error {
 // GetGroupMembers 获取用户组的所有成员
 func GetGroupMembers(groupID string) ([]model.AuthUser, error) {
 	rows, err := db.Query(`
-		SELECT u."id", u."username", u."nickname", u."role", u."aiEnabled"
+		SELECT u."id", u."username", u."nickname", u."role", u."aiEnabled", u."email", u."emailVerified", u."totpEnabled"
 		FROM "User" u
 		JOIN "UserGroupMember" m ON m."userId" = u."id"
 		WHERE m."groupId" = ?
@@ -107,7 +107,8 @@ func GetGroupMembers(groupID string) ([]model.AuthUser, error) {
 	var users []model.AuthUser
 	for rows.Next() {
 		var u model.AuthUser
-		if err := rows.Scan(&u.ID, &u.Username, &u.Nickname, &u.Role, &u.AiEnabled); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.Nickname, &u.Role, &u.AiEnabled,
+			&u.Email, &u.EmailVerified, &u.TotpEnabled); err != nil {
 			continue
 		}
 		users = append(users, u)

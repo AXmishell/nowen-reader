@@ -471,6 +471,40 @@ const zhCN = {
     createAccount: "创建账户",
     hasAccount: "已有账户？去登录",
     noAccount: "没有账户？去注册",
+    email: "邮箱",
+    emailPlaceholder: "邮箱地址",
+    emailRequired: "请输入邮箱地址",
+    passwordTab: "密码登录",
+    emailCodeTab: "邮箱验证码",
+    sendCode: "发送验证码",
+    sendingCode: "发送中...",
+    resendCode: "重新发送",
+    resendInSeconds: "{s} 秒后重发",
+    codeSent: "验证码已发送，请查收邮箱",
+    codePlaceholder: "6 位验证码",
+    codeRequired: "请输入验证码",
+    loginWithCode: "验证码登录",
+    totpTitle: "两步验证",
+    totpDesc: "请输入身份验证器应用中的 6 位动态验证码",
+    totpCodePlaceholder: "6 位动态验证码",
+    totpHint: "如果无法使用验证器，也可以输入一个恢复码",
+    totpVerify: "验证",
+    totpVerifying: "验证中...",
+    backToLogin: "返回登录",
+    ssoDivider: "或",
+    ssoLogin: "使用 SSO 登录",
+    oidcErrorState: "登录会话已失效，请重新尝试",
+    oidcErrorExchange: "无法与身份提供商完成认证，请稍后再试",
+    oidcErrorNonce: "认证校验失败，请重新尝试",
+    oidcErrorClaims: "身份提供商返回的用户信息不完整",
+    oidcErrorNotLinked: "该第三方账号尚未绑定用户，请联系管理员",
+    oidcErrorLinkConflict: "该第三方账号已绑定其他用户",
+    oidcErrorProvider: "无法连接身份提供商，请检查配置",
+    oidcErrorCode: "身份提供商未返回授权码，请重新尝试",
+    oidcErrorInternal: "服务内部错误，请稍后再试",
+    oidcErrorGeneric: "单点登录失败，请重试或使用其他方式登录",
+    totpAdminNotice: "管理员已要求启用两步验证，请尽快在账户设置中完成配置",
+    operationFailed: "操作失败，请重试",
   },
 
   // Metadata
@@ -1342,6 +1376,152 @@ autoDetect: "智能合集",
     confirmBatchDeleteCats: "确认删除选中的",
     batchDeleteCatsWarning: "此操作将从所有漫画中移除这些分类。",
   },
+  authSecurity: {
+    tab: "认证与安全",
+    tabDesc: "邮件、验证与单点登录",
+    title: "认证与安全",
+    subtitle: "集中管理邮件发送、邮箱验证、两步验证与单点登录。",
+    loadFailed: "加载认证配置失败",
+    retry: "重试",
+    saveFailed: "保存失败",
+    dirtyHint: "有尚未保存的修改",
+    cleanHint: "所有认证与安全设置均已保存",
+    discard: "取消修改",
+    save: "保存配置",
+    saved: "已保存",
+    // SMTP
+    smtpTitle: "SMTP 邮件",
+    smtpDesc: "用于发送邮箱验证码、登录验证码与系统通知邮件。",
+    smtpEnabled: "启用 SMTP 邮件发送",
+    smtpEnabledHint: "关闭后，邮箱验证码等依赖邮件的功能将不可用。",
+    smtpHost: "SMTP 服务器",
+    smtpHostPlaceholder: "smtp.example.com",
+    smtpHostRequired: "启用 SMTP 后必须填写服务器地址",
+    smtpPort: "端口",
+    smtpPortError: "端口必须在 1 - 65535 之间",
+    smtpUsername: "用户名",
+    smtpUsernamePlaceholder: "通常为完整邮箱地址",
+    smtpPassword: "密码 / 授权码",
+    smtpPasswordKeep: "已设置，留空表示不修改",
+    smtpPasswordPlaceholder: "请输入 SMTP 密码或授权码",
+    smtpFrom: "发件人地址",
+    smtpFromName: "发件人名称",
+    smtpTlsMode: "加密方式",
+    smtpTlsNone: "不加密",
+    smtpTlsStarttls: "STARTTLS",
+    smtpTlsSsl: "SSL/TLS",
+    smtpTestTitle: "发送测试邮件",
+    smtpTestDesc: "使用已保存的 SMTP 配置发送一封测试邮件，验证配置是否可用。",
+    smtpTestRecipient: "收件人地址",
+    smtpTestSend: "发送测试邮件",
+    smtpTestSending: "发送中...",
+    smtpTestSuccess: "测试邮件已发送，请检查收件箱。",
+    smtpTestFailed: "测试邮件发送失败",
+    smtpTestInvalidRecipient: "请输入有效的收件人邮箱地址",
+    smtpTestDirtyHint: "测试使用已保存的配置，未保存的修改不会生效。",
+    // 邮箱验证策略
+    emailTitle: "邮箱验证策略",
+    emailDesc: "控制注册时的邮箱要求，以及邮箱验证与验证码登录的行为。",
+    emailVerification: "强制邮箱验证",
+    emailVerificationHint: "开启后注册必须填写邮箱，未验证邮箱的普通用户无法登录（管理员豁免，避免锁死自己）。",
+    emailCodeLogin: "允许邮箱验证码登录",
+    emailCodeLoginHint: "开启后用户可使用邮箱验证码登录，无需输入密码；关闭时仅保留密码登录。",
+    // TOTP
+    totpTitle: "TOTP 两步验证",
+    totpDesc: "基于时间的一次性密码（TOTP），兼容 Google Authenticator 等验证器应用。",
+    totpEnabled: "启用 TOTP",
+    totpEnabledHint: "关闭后所有用户都无法使用 TOTP 两步验证，已有绑定将暂时失效。",
+    totpRequiredForAdmins: "要求管理员启用 TOTP",
+    totpRequiredForAdminsHint: "软性提醒而非强制锁定：未启用的管理员仍可登录，但登录后会收到绑定提示。",
+    totpIssuer: "发行方名称（Issuer）",
+    totpIssuerHint: "显示在验证器应用中的名称；留空时使用默认站点名称。",
+    // OIDC
+    oidcTitle: "OIDC 单点登录",
+    oidcDesc: "接入兼容 OpenID Connect 的身份提供商（Keycloak、Authentik、Authelia 等）。",
+    oidcEnabled: "启用 OIDC 单点登录",
+    oidcEnabledHint: "启用后登录页会显示单点登录按钮；需先填写 Issuer URL 与 Client ID。",
+    oidcIssuerUrl: "Issuer URL",
+    oidcIssuerUrlPlaceholder: "https://idp.example.com/realms/main",
+    oidcIssuerUrlRequired: "启用 OIDC 后必须填写 Issuer URL",
+    oidcClientId: "Client ID",
+    oidcClientIdPlaceholder: "nowen-reader",
+    oidcClientIdRequired: "启用 OIDC 后必须填写 Client ID",
+    oidcClientSecret: "Client Secret",
+    oidcClientSecretKeep: "已设置，留空表示不修改",
+    oidcClientSecretPlaceholder: "请输入 Client Secret",
+    oidcScopes: "Scopes",
+    oidcScopesPlaceholder: "openid profile email",
+    oidcScopesHint: "以空格分隔，通常为 openid profile email。",
+    oidcButtonLabel: "登录按钮文字",
+    oidcButtonLabelPlaceholder: "使用 SSO 登录",
+    oidcAutoCreateUsers: "自动创建用户",
+    oidcAutoCreateUsersHint: "首次通过 OIDC 登录且邮箱匹配不到已有账号时，自动创建新用户。",
+    oidcCallbackUrl: "回调地址（Callback URL）",
+    oidcCallbackUrlHint: "请将以下地址原样登记到身份提供商的 Redirect URI 白名单中，必须完全一致。",
+    copy: "复制",
+    copied: "已复制",
+    copyFailed: "复制失败，请手动选择并复制。",
+  },
+  accountSecurity: {
+    // 邮箱
+    emailTitle: "邮箱",
+    emailDesc: "用于登录验证与账户找回，修改邮箱请联系管理员。",
+    emailVerified: "已验证",
+    emailUnverified: "未验证",
+    emailMissing: "当前账户未设置邮箱",
+    emailMissingHint: "邮箱需要由注册流程或管理员设置，设置后可在此处完成验证。",
+    emailSendCode: "发送验证码",
+    emailCodeSent: "验证码已发送，请查收邮件。",
+    emailSendFailed: "验证码发送失败",
+    emailCodeLabel: "邮箱验证码",
+    emailCodePlaceholder: "6 位验证码",
+    emailVerify: "验证",
+    emailVerifying: "验证中",
+    emailVerifySuccess: "邮箱验证成功",
+    emailVerifyFailed: "邮箱验证失败",
+    // 两步验证
+    totpTitle: "两步验证",
+    totpDesc: "使用验证器应用生成一次性验证码，为登录增加第二重保护。",
+    totpEnabledBadge: "已启用",
+    totpDisabledBadge: "未启用",
+    totpEnabledHint: "两步验证已启用，登录时需要输入验证器验证码或恢复码。",
+    totpEnable: "启用",
+    totpDisable: "关闭",
+    totpSetupFailed: "无法开始两步验证设置",
+    totpScanHint: "使用验证器应用扫描二维码，或手动输入下方密钥。",
+    totpQrAlt: "两步验证二维码",
+    totpQrFailed: "二维码生成失败，请手动输入密钥。",
+    totpSecretLabel: "密钥",
+    totpCopySecret: "复制密钥",
+    totpCopied: "已复制",
+    totpCodeLabel: "验证码",
+    totpCodePlaceholder: "输入 6 位验证码",
+    totpConfirmEnable: "确认启用",
+    totpEnabling: "启用中",
+    totpEnableFailed: "验证码无效，无法启用两步验证",
+    totpRecoveryTitle: "恢复码",
+    totpRecoveryWarning: "请立即保存这些恢复码，它们只显示一次。设备丢失时可使用恢复码登录。",
+    totpRecoveryCopyAll: "复制全部",
+    totpRecoveryDone: "我已保存",
+    totpDisableTitle: "关闭两步验证",
+    totpDisableWarning: "关闭后登录将不再需要验证码。请输入验证器验证码或恢复码以确认。",
+    totpDisableConfirm: "确认关闭",
+    totpDisabling: "关闭中",
+    totpDisableFailed: "验证码无效，无法关闭两步验证",
+    totpDisabledSuccess: "两步验证已关闭",
+    // 单点登录
+    oidcTitle: "单点登录",
+    oidcDesc: "绑定身份提供商账户后，可使用单点登录进入当前账户。",
+    oidcDisabled: "站点未启用 OIDC 单点登录",
+    oidcDisabledHint: "请联系管理员在“认证与安全”中完成配置。",
+    oidcEmpty: "尚未绑定任何身份提供商账户",
+    oidcIssuer: "身份提供商",
+    oidcBind: "绑定账户",
+    oidcUnlink: "解绑",
+    oidcConfirmUnlink: "确定解绑这个身份吗？解绑后将无法使用该身份登录。",
+    oidcUnlinkFailed: "解绑失败",
+    oidcLoadFailed: "加载单点登录信息失败",
+  },
 } satisfies Translations;
 
 export default zhCN;
@@ -1786,6 +1966,40 @@ export interface Translations {
     createAccount: string;
     hasAccount: string;
     noAccount: string;
+    email: string;
+    emailPlaceholder: string;
+    emailRequired: string;
+    passwordTab: string;
+    emailCodeTab: string;
+    sendCode: string;
+    sendingCode: string;
+    resendCode: string;
+    resendInSeconds: string;
+    codeSent: string;
+    codePlaceholder: string;
+    codeRequired: string;
+    loginWithCode: string;
+    totpTitle: string;
+    totpDesc: string;
+    totpCodePlaceholder: string;
+    totpHint: string;
+    totpVerify: string;
+    totpVerifying: string;
+    backToLogin: string;
+    ssoDivider: string;
+    ssoLogin: string;
+    oidcErrorState: string;
+    oidcErrorExchange: string;
+    oidcErrorNonce: string;
+    oidcErrorClaims: string;
+    oidcErrorNotLinked: string;
+    oidcErrorLinkConflict: string;
+    oidcErrorProvider: string;
+    oidcErrorCode: string;
+    oidcErrorInternal: string;
+    oidcErrorGeneric: string;
+    totpAdminNotice: string;
+    operationFailed: string;
   };
   metadata: {
     searchPlaceholder: string;
@@ -2605,5 +2819,151 @@ export interface Translations {
     categoriesUnit: string;
     confirmBatchDeleteCats: string;
     batchDeleteCatsWarning: string;
+  };
+  authSecurity: {
+    tab: string;
+    tabDesc: string;
+    title: string;
+    subtitle: string;
+    loadFailed: string;
+    retry: string;
+    saveFailed: string;
+    dirtyHint: string;
+    cleanHint: string;
+    discard: string;
+    save: string;
+    saved: string;
+    // SMTP
+    smtpTitle: string;
+    smtpDesc: string;
+    smtpEnabled: string;
+    smtpEnabledHint: string;
+    smtpHost: string;
+    smtpHostPlaceholder: string;
+    smtpHostRequired: string;
+    smtpPort: string;
+    smtpPortError: string;
+    smtpUsername: string;
+    smtpUsernamePlaceholder: string;
+    smtpPassword: string;
+    smtpPasswordKeep: string;
+    smtpPasswordPlaceholder: string;
+    smtpFrom: string;
+    smtpFromName: string;
+    smtpTlsMode: string;
+    smtpTlsNone: string;
+    smtpTlsStarttls: string;
+    smtpTlsSsl: string;
+    smtpTestTitle: string;
+    smtpTestDesc: string;
+    smtpTestRecipient: string;
+    smtpTestSend: string;
+    smtpTestSending: string;
+    smtpTestSuccess: string;
+    smtpTestFailed: string;
+    smtpTestInvalidRecipient: string;
+    smtpTestDirtyHint: string;
+    // 邮箱验证策略
+    emailTitle: string;
+    emailDesc: string;
+    emailVerification: string;
+    emailVerificationHint: string;
+    emailCodeLogin: string;
+    emailCodeLoginHint: string;
+    // TOTP
+    totpTitle: string;
+    totpDesc: string;
+    totpEnabled: string;
+    totpEnabledHint: string;
+    totpRequiredForAdmins: string;
+    totpRequiredForAdminsHint: string;
+    totpIssuer: string;
+    totpIssuerHint: string;
+    // OIDC
+    oidcTitle: string;
+    oidcDesc: string;
+    oidcEnabled: string;
+    oidcEnabledHint: string;
+    oidcIssuerUrl: string;
+    oidcIssuerUrlPlaceholder: string;
+    oidcIssuerUrlRequired: string;
+    oidcClientId: string;
+    oidcClientIdPlaceholder: string;
+    oidcClientIdRequired: string;
+    oidcClientSecret: string;
+    oidcClientSecretKeep: string;
+    oidcClientSecretPlaceholder: string;
+    oidcScopes: string;
+    oidcScopesPlaceholder: string;
+    oidcScopesHint: string;
+    oidcButtonLabel: string;
+    oidcButtonLabelPlaceholder: string;
+    oidcAutoCreateUsers: string;
+    oidcAutoCreateUsersHint: string;
+    oidcCallbackUrl: string;
+    oidcCallbackUrlHint: string;
+    copy: string;
+    copied: string;
+    copyFailed: string;
+  };
+  accountSecurity: {
+    // 邮箱
+    emailTitle: string;
+    emailDesc: string;
+    emailVerified: string;
+    emailUnverified: string;
+    emailMissing: string;
+    emailMissingHint: string;
+    emailSendCode: string;
+    emailCodeSent: string;
+    emailSendFailed: string;
+    emailCodeLabel: string;
+    emailCodePlaceholder: string;
+    emailVerify: string;
+    emailVerifying: string;
+    emailVerifySuccess: string;
+    emailVerifyFailed: string;
+    // 两步验证
+    totpTitle: string;
+    totpDesc: string;
+    totpEnabledBadge: string;
+    totpDisabledBadge: string;
+    totpEnabledHint: string;
+    totpEnable: string;
+    totpDisable: string;
+    totpSetupFailed: string;
+    totpScanHint: string;
+    totpQrAlt: string;
+    totpQrFailed: string;
+    totpSecretLabel: string;
+    totpCopySecret: string;
+    totpCopied: string;
+    totpCodeLabel: string;
+    totpCodePlaceholder: string;
+    totpConfirmEnable: string;
+    totpEnabling: string;
+    totpEnableFailed: string;
+    totpRecoveryTitle: string;
+    totpRecoveryWarning: string;
+    totpRecoveryCopyAll: string;
+    totpRecoveryDone: string;
+    totpDisableTitle: string;
+    totpDisableWarning: string;
+    totpDisableConfirm: string;
+    totpDisabling: string;
+    totpDisableFailed: string;
+    totpDisabledSuccess: string;
+    // 单点登录
+    oidcTitle: string;
+    oidcDesc: string;
+    oidcDisabled: string;
+    oidcDisabledHint: string;
+    oidcEmpty: string;
+    oidcIssuer: string;
+    oidcBind: string;
+    oidcUnlink: string;
+    oidcConfirmUnlink: string;
+    oidcUnlinkFailed: string;
+    oidcLoadFailed: string;
   };
 }

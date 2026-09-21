@@ -1,0 +1,116 @@
+name: Release Docker Image (GHCR)
+
+# 打 tag（v*）时自动构建并推送多架构 Docker 镜像到 GitHub Container Registry (GHCR)。
+# 命名与 release.sh 保持一致：镜像标签为 v 前缀（如 ghcr.io/<owner>/nowen-reader:v1.3.0），
+# 非预发布版本额外打 :latest，预发布版本（含 - 后缀，如 v1.3.0-rc.1）不打 :latest。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要构建的 tag（例如 v1.3.0）'
+        required: true
+        type: string
+
+# 同一 ref 的发布不允许并发推送；中断中的发布不取消，避免推到一半。
+concurrency:
+  group: docker-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docker:
+    name: Build & push multi-arch image (GHCR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # 推送镜像到 GHCR 必需
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version and image tags
+        id: version
+        env:
+          # 通过 env 传参，避免把事件/输入直接插值进 shell 脚本
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            RAW="${INPUT_TAG}"
+          else
+            RAW="${REF_NAME}"
+          fi
+
+          # 去除可选的 v 前缀后校验，再统一加回 v（与 release.sh 一致）
+          VERSION="${RAW#v}"
+          if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::版本号格式非法：${RAW}（期望 X.Y.Z 或 X.Y.Z-rc.N）"
+            exit 1
+          fi
+          VERSION_TAG="v${VERSION}"
+
+          # GHCR 镜像名要求全小写，直接由 GITHUB_REPOSITORY(owner/repo) 推导
+          IMAGE="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+
+          # 预发布版本（含 - 后缀）不覆盖 :latest；case 的通配匹配在 sh/bash 下均可靠
+          TAGS="${IMAGE}:${VERSION_TAG}"
+          case "${VERSION_TAG}" in
+            *-*) ;;
+            *) TAGS="${TAGS},${IMAGE}:latest" ;;
+          esac
+
+          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "version_tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "build_time=${BUILD_TIME}" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.version_tag }}
+            BUILD_TIME=${{ steps.version.outputs.build_time }}
+            GIT_COMMIT=${{ github.sha }}
+          tags: ${{ steps.version.outputs.tags }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version_tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### Docker image released (GHCR)"
+            echo ""
+            echo "- Version: \`${{ steps.version.outputs.version_tag }}\`"
+            echo "- Image: \`${{ steps.version.outputs.image }}\`"
+            echo "- Tags: \`${{ steps.version.outputs.tags }}\`"
+            echo "- Platforms: \`linux/amd64, linux/arm64\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

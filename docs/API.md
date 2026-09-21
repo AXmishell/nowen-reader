@@ -44,6 +44,23 @@ https://example.com/reader/api/opds
 | DELETE | `/api/auth/api-keys` | 撤销当前用户全部 API Key 🔒浏览器会话 |
 | GET | `/api/admin/users/:id/api-keys` | 查看指定用户的 API Key 元数据 🔒管理员浏览器会话 |
 | DELETE | `/api/admin/users/:id/api-keys` | 撤销指定用户全部 API Key 🔒管理员浏览器会话 |
+| POST | `/api/auth/email/send` | 发送邮箱验证码 / 登录验证码（限流） |
+| POST | `/api/auth/email/verify` | 校验邮箱验证码（限流） |
+| POST | `/api/auth/email/login` | 邮箱验证码登录（限流） |
+| POST | `/api/auth/totp/setup` | 开始绑定 TOTP 双因素 🔒浏览器会话 |
+| POST | `/api/auth/totp/enable` | 确认并启用 TOTP，返回恢复码 🔒浏览器会话 |
+| POST | `/api/auth/totp/disable` | 关闭 TOTP 双因素 🔒浏览器会话 |
+| GET | `/api/auth/totp/status` | 查询当前用户 TOTP 状态 🔒浏览器会话 |
+| POST | `/api/auth/totp/verify` | 完成登录二次验证（限流） |
+| GET | `/api/auth/oidc/providers` | 可用的 OIDC 登录按钮列表 |
+| GET | `/api/auth/oidc/login` | 发起 OIDC 登录并跳转 IdP（限流） |
+| GET | `/api/auth/oidc/link` | 将 OIDC 身份绑定到当前会话用户 🔒浏览器会话 |
+| GET | `/api/auth/oidc/callback` | IdP 回调入口，302 重定向 |
+| GET | `/api/auth/oidc/identities` | 当前用户已绑定的 OIDC 身份 🔒浏览器会话 |
+| DELETE | `/api/auth/oidc/identities/:id` | 解绑一个 OIDC 身份 🔒浏览器会话 |
+| GET | `/api/admin/auth-config` | 读取邮件 / 双因素 / SSO 配置 🔒管理员 |
+| PUT | `/api/admin/auth-config` | 更新认证配置 🔒管理员 |
+| POST | `/api/admin/auth-config/smtp-test` | 发送 SMTP 测试邮件 🔒管理员 |
 
 ### API Key 认证
 
@@ -114,6 +131,350 @@ Content-Type: application/json
 ```
 
 管理员接口只能查看指定用户的 Key 元数据或全部撤销，不能替其他用户创建 Key。
+
+### 登录与二次验证（TOTP step-up）
+
+`POST /api/auth/login` 与 `POST /api/auth/email/login` 在凭据校验通过后，会根据账号是否已启用 TOTP 返回两种结果之一：
+
+- 未启用 TOTP：返回 `{"user": {...}}`，并在响应中设置会话 Cookie，登录完成。
+- 已启用 TOTP：**不创建会话**，返回挑战，客户端需继续调用 `POST /api/auth/totp/verify`：
+
+```json
+{
+  "totpRequired": true,
+  "challengeId": "uuid"
+}
+```
+
+`challengeId` 5 分钟内有效且一次性使用；超时后需重新登录。
+
+当 `totp.requiredForAdmins=true` 且当前管理员尚未绑定 TOTP 时，登录仍会成功，但 `user` 响应会附带回软提示：
+
+```json
+{
+  "user": { "...": "..." },
+  "mustSetupTotp": true
+}
+```
+
+`mustSetupTotp` 只是提示，不会阻止访问；客户端应引导管理员前往「认证与安全」完成绑定。
+
+### 邮箱验证与邮箱验证码登录
+
+发送验证码：
+
+```http
+POST /api/auth/email/send
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "purpose": "verify"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|:---|:---|:---:|:---|
+| `email` | string | 是 | 接收验证码的邮箱 |
+| `purpose` | string | 是 | `verify`（邮箱验证）或 `login`（登录） |
+
+- 公开接口，受严格限流保护。
+- 无论账号是否存在、状态是否匹配，格式正确时始终返回 `{"success": true}`，避免账号枚举。
+- `purpose=login` 且未启用 `emailCodeLoginEnabled` 时返回 `403`。
+- 未配置 SMTP（需 `smtpEnabled=true` 且 `smtp.host` 非空）时返回 `503`，响应 `{"error": "SMTP 未配置"}`。
+- 请求体非法、邮箱格式错误或 `purpose` 非法返回 `400`。
+
+校验邮箱验证码（将邮箱标记为已验证）：
+
+```http
+POST /api/auth/email/verify
+Content-Type: application/json
+
+{"email": "user@example.com", "code": "123456"}
+```
+
+- 成功返回 `{"success": true}`，并将该用户 `emailVerified` 置为 `true`。
+- 验证码错误、过期或不存在返回 `400`（`{"error": "Invalid or expired code"}`），并累加尝试次数。
+- 连续尝试达到 5 次返回 `429`。
+
+邮箱验证码登录：
+
+```http
+POST /api/auth/email/login
+Content-Type: application/json
+
+{"email": "user@example.com", "code": "123456"}
+```
+
+- 成功时与 `/api/auth/login` 行为一致：返回 `{"user": {...}}` 并设置会话 Cookie，或在启用 TOTP 时返回 `{"totpRequired": true, "challengeId": "..."}`。
+- 邮箱不存在、未验证、验证码错误或过期统一返回 `401`（`{"error": "Invalid email or code"}`），避免账号枚举。
+- 功能未启用返回 `403`；尝试次数达到 5 次返回 `429`。
+
+### 双因素认证（TOTP）
+
+除 `totp/verify` 外，以下接口均要求浏览器会话。
+
+开始绑定（生成密钥，尚未启用）：
+
+```http
+POST /api/auth/totp/setup
+```
+
+成功返回：
+
+```json
+{
+  "secret": "BASE32SECRET",
+  "otpauthUrl": "otpauth://totp/..."
+}
+```
+
+- 已启用时返回 `400`（`{"error": "TOTP is already enabled"}`）。
+- `secret` 与 `otpauthUrl` 仅在本次响应返回；数据库中保存的是加密后的密钥。
+
+确认启用（提交一次动态码）：
+
+```http
+POST /api/auth/totp/enable
+Content-Type: application/json
+
+{"code": "123456"}
+```
+
+成功返回一次性恢复码：
+
+```json
+{"recoveryCodes": ["abcd-efgh", "..."]}
+```
+
+- 共 10 个恢复码，只返回一次，请提示用户妥善保存。
+- 未先调用 `setup`、动态码错误或已启用返回 `400`。
+
+关闭双因素：
+
+```http
+POST /api/auth/totp/disable
+Content-Type: application/json
+
+{"code": "123456"}
+```
+
+- `code` 可以是当前 TOTP 动态码，也可以是任一未使用的恢复码（使用后即失效）。
+- 未启用或验证失败返回 `400`；成功返回 `{"success": true}`，同时清除密钥与全部恢复码。
+
+查询状态：
+
+```http
+GET /api/auth/totp/status
+```
+
+```json
+{"enabled": false}
+```
+
+完成登录二次验证：
+
+```http
+POST /api/auth/totp/verify
+Content-Type: application/json
+
+{
+  "challengeId": "uuid",
+  "code": "123456"
+}
+```
+
+- 公开接口（限流），凭 `challengeId` 完成第一步登录，无需已有会话。
+- `code` 可以是 TOTP 动态码或未使用的恢复码。
+- 成功返回 `{"user": {...}}` 并设置会话 Cookie，挑战随即被消费。
+- `challengeId` 缺失、非法或已过期返回 `400`；动态码 / 恢复码错误返回 `401`。
+
+> 管理员可在 `PUT /api/auth/users` 中使用 `action=resetTotp` 清除指定用户的双因素。
+
+### OIDC 单点登录
+
+| 方法 | 路径 | 认证 | 说明 |
+|:---|:---|:---|:---|
+| GET | `/api/auth/oidc/providers` | 公开 | 返回登录页可用的 SSO 按钮 |
+| GET | `/api/auth/oidc/login` | 公开（限流） | 发起登录，302 跳转 IdP |
+| GET | `/api/auth/oidc/link` | 🔒浏览器会话（限流） | 发起绑定，将身份关联到当前用户 |
+| GET | `/api/auth/oidc/callback` | 公开 | IdP 回调入口，始终 302 重定向 |
+| GET | `/api/auth/oidc/identities` | 🔒浏览器会话 | 当前用户已绑定的身份列表 |
+| DELETE | `/api/auth/oidc/identities/:id` | 🔒浏览器会话 | 解绑指定身份 |
+
+发现可用登录方式（登录页在渲染 SSO 按钮前调用）：
+
+```http
+GET /api/auth/oidc/providers
+```
+
+未启用时返回空列表：
+
+```json
+{"providers": []}
+```
+
+启用后返回：
+
+```json
+{"providers": [{"id": "default", "label": "OIDC"}]}
+```
+
+`label` 取自 `oidc.buttonLabel`。
+
+发起登录 / 绑定：
+
+```http
+GET /api/auth/oidc/login
+GET /api/auth/oidc/link
+```
+
+- 未启用时返回 `404`（`{"error": "OIDC is not enabled"}`）。
+- 成功时返回 `302`，跳转到 IdP 授权地址，并设置加密的 `nowen_oidc_state` Cookie（携带 state、nonce、PKCE verifier，10 分钟有效）。
+- `oidc/link` 需要先登录；未登录返回 `401`。
+
+回调（由 IdP 浏览器跳转触发，不需要登录）：
+
+```http
+GET /api/auth/oidc/callback?code=...&state=...
+```
+
+回调**始终**以 `302` 跳回前端根路径 `<BASE_PATH>/`，通过查询参数表达结果：
+
+| 结果 | 重定向目标 |
+|:---|:---|
+| 成功（已设置会话 Cookie） | `<BASE_PATH>/?oidc=ok` |
+| 需要 TOTP 二次验证 | `<BASE_PATH>/?oidc=totp&challengeId=<id>` |
+| 失败 | `<BASE_PATH>/?oidc_error=<code>` |
+
+失败错误码：
+
+| `oidc_error` | 含义 |
+|:---|:---|
+| `provider` | IdP 返回了错误 |
+| `state` | state 缺失、不匹配或状态 Cookie 失效 |
+| `code` | 回调缺少授权码 |
+| `exchange` | 授权码换取令牌失败或 ID Token 校验失败 |
+| `nonce` | nonce 不匹配 |
+| `claims` | ID Token 缺少 `sub` |
+| `not_linked` | 身份未绑定且未开启自动创建用户 |
+| `link_conflict` | 该身份已绑定到其他本地账号 |
+| `link_failed` | 绑定身份写入失败 |
+| `provision_failed` | 自动创建本地账号失败 |
+| `internal` | 服务端内部错误 |
+
+> 当 `/api/auth/oidc/callback` 被直接访问且 OIDC 未启用时，返回 `404` JSON，而不是重定向。
+
+管理已绑定身份：
+
+```http
+GET /api/auth/oidc/identities
+```
+
+```json
+[
+  {"id": "uuid", "issuer": "https://idp.example.com", "subject": "sub", "email": "user@example.com"}
+]
+```
+
+```http
+DELETE /api/auth/oidc/identities/:id
+```
+
+- 只能解绑当前会话用户自己的身份；不属于当前用户（或不存在）返回 `404`（`{"error": "OIDC identity not found"}`）。
+- 成功返回 `{"success": true}`。
+
+### 认证配置（管理员）
+
+```http
+GET /api/admin/auth-config
+```
+
+需要管理员权限。返回当前认证配置（**不包含** SMTP 密码与 OIDC 客户端密钥，仅以布尔值标示是否已设置）：
+
+```json
+{
+  "smtp": {
+    "enabled": false,
+    "host": "",
+    "port": 587,
+    "username": "",
+    "passwordSet": false,
+    "from": "",
+    "fromName": "NowenReader",
+    "tlsMode": "starttls"
+  },
+  "totp": {
+    "enabled": false,
+    "requiredForAdmins": false,
+    "issuer": "NowenReader"
+  },
+  "oidc": {
+    "enabled": false,
+    "issuerUrl": "",
+    "clientId": "",
+    "clientSecretSet": false,
+    "scopes": "openid profile email",
+    "buttonLabel": "OIDC",
+    "autoCreateUsers": false,
+    "callbackUrl": "/api/auth/oidc/callback"
+  },
+  "emailVerificationRequired": false,
+  "emailCodeLoginEnabled": false
+}
+```
+
+`callbackUrl` 是必须注册到 IdP 的回调地址，已包含 `BASE_PATH`。
+
+更新配置：
+
+```http
+PUT /api/admin/auth-config
+Content-Type: application/json
+
+{
+  "smtp": {
+    "enabled": true,
+    "host": "smtp.example.com",
+    "port": 587,
+    "username": "bot@example.com",
+    "password": "",
+    "from": "bot@example.com",
+    "fromName": "NowenReader",
+    "tlsMode": "starttls"
+  },
+  "totp": {"enabled": true, "requiredForAdmins": false, "issuer": "NowenReader"},
+  "oidc": {
+    "enabled": false,
+    "issuerUrl": "",
+    "clientId": "",
+    "clientSecret": "",
+    "scopes": "openid profile email",
+    "buttonLabel": "OIDC",
+    "autoCreateUsers": false
+  },
+  "emailVerificationRequired": false,
+  "emailCodeLoginEnabled": true
+}
+```
+
+- 所有字段均为可选，按字段合并到现有配置；未提交的字段保持不变。
+- `smtp.password` 或 `oidc.clientSecret` 传空字符串表示保留已存储的密钥。
+- `smtp.port` 必须在 1～65535 之间；`smtp.tlsMode` 只能是 `none` / `starttls` / `ssl`；非法值返回 `400`。
+- 启用 OIDC（`oidc.enabled=true`）时 `issuerUrl` 与 `clientId` 为必填，否则返回 `400`。
+- 成功返回 `{"success": true}`。
+
+发送 SMTP 测试邮件：
+
+```http
+POST /api/admin/auth-config/smtp-test
+Content-Type: application/json
+
+{"to": "admin@example.com"}
+```
+
+- 邮箱格式非法、SMTP 未配置或发送失败返回 `400`（失败时 `error` 为具体原因）。
+- 成功返回 `{"success": true}`。
 
 ## 📚 漫画
 

@@ -12,7 +12,8 @@
 | `DATABASE_URL` | `./data/nowen-reader.db` | SQLite 数据库文件路径 |
 | `COMICS_DIR` | `./comics` | 漫画主目录 |
 | `NOVELS_DIR` | `./novels` | 电子书主目录 |
-| `DATA_DIR` | `./.cache` | 数据/缓存目录（缩略图、页面缓存、`site-config.json`、`ai-config.json`） |
+| `DATA_DIR` | `./.cache` | 数据/缓存目录（缩略图、页面缓存、`site-config.json`、`ai-config.json`、`secret.key`） |
+| `NOWEN_SECRET_KEY` | 自动生成 | 认证密钥：加密 TOTP 密钥与 OIDC state Cookie。支持 base64 编码的 32 字节，或任意字符串（经 SHA-256 派生）。留空时首次运行自动生成并保存到 `{DATA_DIR}/secret.key`（权限 `0600`） |
 | `FRONTEND_DIR` | — | 开发模式下指向独立前端构建产物；生产环境留空以使用嵌入前端 |
 | `GIN_MODE` | `debug` | Gin 运行模式（`debug` 详细日志 / `release` 静默） |
 | `TZ` | `Asia/Shanghai` | 时区 |
@@ -89,6 +90,67 @@ location /reader/ {
 | `open` | 开放注册（默认），任何人可自行注册 |
 | `invite` | 仅限邀请，管理员生成邀请码后方可注册 |
 | `closed` | 关闭注册，仅管理员可创建账号 |
+
+## 认证与安全（邮箱验证 / 双因素 / 单点登录）
+
+邮箱验证码、TOTP 双因素和 OIDC 单点登录**推荐直接在 Web 管理界面的「认证与安全」面板中配置**，由后端写入 `{DATA_DIR}/site-config.json`，无需手动编辑文件。管理员接口读取配置时，SMTP 密码与 OIDC 客户端密钥只会以 `passwordSet` / `clientSecretSet` 布尔值返回，不会回显明文；保存时传入空字符串表示保留原值。以下字段供排查问题或直接编辑文件时参考。
+
+### 邮件与邮箱策略（SMTP）
+
+| 字段 | 默认值 | 说明 |
+|:---|:---|:---|
+| `smtpEnabled` | `false` | 邮件发送总开关；仅在为 `true` 且 `smtp.host` 非空时才真正启用 |
+| `smtp.host` | 空 | SMTP 服务器主机名 |
+| `smtp.port` | `587` | SMTP 端口 |
+| `smtp.username` | 空 | SMTP 用户名；留空时不进行认证 |
+| `smtp.password` | 空 | SMTP 密码 |
+| `smtp.from` | 空 | 发件人地址；留空时回退使用 `smtp.username` |
+| `smtp.fromName` | `NowenReader` | 发件人显示名称 |
+| `smtp.tlsMode` | `starttls` | TLS 模式，仅接受 `none` / `starttls` / `ssl`；其他值按 `starttls` 处理 |
+| `emailVerificationRequired` | `false` | 为 `true` 时注册必须填写邮箱；未验证邮箱的普通用户禁止登录（管理员豁免，避免把自己锁在门外） |
+| `emailCodeLoginEnabled` | `false` | 是否允许邮箱验证码登录（`purpose=login` 及 `/api/auth/email/login`） |
+
+- `tlsMode` 取值：`none` 不加密，`starttls` 通过 STARTTLS 强制升级，`ssl` 直接使用 TLS（SMTPS）。
+- 邮箱验证码为 **6 位数字**，有效期 **10 分钟**，连续错误 **5 次**后失效；数据库只保存验证码的 SHA-256 摘要，不保存明文。
+- 发送接口对未注册或状态不符的邮箱也返回成功，避免账号枚举。
+- 关闭 `smtpEnabled` 后立即停止发信；注册、邮箱验证与邮箱验证码登录都会提示邮件未配置。
+
+### 双因素认证（TOTP）
+
+| 字段 | 默认值 | 说明 |
+|:---|:---|:---|
+| `totp.enabled` | `false` | 是否允许用户绑定 TOTP 双因素 |
+| `totp.requiredForAdmins` | `false` | 是否提示管理员绑定 TOTP；这是**软提示**，登录仍会成功 |
+| `totp.issuer` | `NowenReader` | 发行方名称，显示在验证器 App 中，也用于 otpauth URI |
+
+- 用户先通过 `/api/auth/totp/setup` 获取密钥与 otpauth URI，再用 `/api/auth/totp/enable` 提交一次动态码完成绑定。
+- 启用时一次性下发 **10 个恢复码**，每个只能使用一次；恢复码同样以摘要形式存储，明文只在启用响应中出现一次。
+- TOTP 密钥使用 `NOWEN_SECRET_KEY` 派生的 AES-256-GCM 加密后入库。
+- 管理员可在用户管理中通过 `PUT /api/auth/users`（`action=resetTotp`）重置某个用户的双因素。
+
+### 单点登录（OIDC）
+
+| 字段 | 默认值 | 说明 |
+|:---|:---|:---|
+| `oidc.enabled` | `false` | 是否启用 OIDC 单点登录 |
+| `oidc.issuerUrl` | 空 | IdP 的 Issuer URL（用于自动发现） |
+| `oidc.clientId` | 空 | OAuth2 客户端 ID |
+| `oidc.clientSecret` | 空 | 客户端密钥；接口只返回 `clientSecretSet` |
+| `oidc.scopes` | `openid profile email` | 请求的 scope，空格分隔 |
+| `oidc.buttonLabel` | `OIDC` | 登录页按钮文案，也是唯一 provider 的 `label` |
+| `oidc.autoCreateUsers` | `false` | 未绑定的外部身份是否自动创建本地账号 |
+
+- 只有 `oidc.enabled=true` **且** `issuerUrl`、`clientId` 均已填写时才视为启用。
+- 必须在 IdP 注册回调地址 `<BASE_PATH>/api/auth/oidc/callback`。根部署为 `/api/auth/oidc/callback`；当 `BASE_PATH=/reader` 时为 `/reader/api/auth/oidc/callback`。该地址必须与 IdP 中登记的地址完全一致。
+- 登录使用授权码 + PKCE（S256）流程，并校验 state 与 nonce。
+- `autoCreateUsers=false` 时，未绑定的外部身份登录会失败并跳回前端，附带 `oidc_error=not_linked`；用户需先用本地账号登录，再通过 `/api/auth/oidc/link` 绑定。
+
+### 认证密钥（NOWEN_SECRET_KEY）
+
+- 用途：加密数据库中保存的 TOTP 密钥，以及 OIDC 登录时写入浏览器的 state Cookie（AES-256-GCM）。
+- 取值：优先读取环境变量 `NOWEN_SECRET_KEY`。若其内容是合法 base64 且解码后为 32 字节，直接作为密钥；否则对原字符串做 SHA-256，取 32 字节作为密钥。
+- 缺省：未设置环境变量时，首次运行会在 `{DATA_DIR}/secret.key` 自动生成 32 字节随机密钥并落盘（权限 `0600`）。
+- ⚠️ **警告**：丢失或轮换该密钥会导致已保存的 TOTP 密钥无法解密，所有已绑定用户的双因素失效（需重新绑定）；进行中的 OIDC 登录也会中断。迁移或备份时请一并保留 `secret.key`。
 
 ## AI 配置
 

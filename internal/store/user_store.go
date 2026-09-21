@@ -14,9 +14,10 @@ func CreateUser(user *model.User) error {
 	user.UpdatedAt = now
 
 	_, err := db.Exec(
-		`INSERT INTO "User" ("id", "username", "password", "nickname", "role", "aiEnabled", "createdAt", "updatedAt")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		user.ID, user.Username, user.Password, user.Nickname, user.Role, user.AiEnabled, now, now,
+		`INSERT INTO "User" ("id", "username", "password", "nickname", "role", "aiEnabled", "email", "emailVerified", "totpSecret", "totpEnabled", "createdAt", "updatedAt")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		user.ID, user.Username, user.Password, user.Nickname, user.Role, user.AiEnabled,
+		user.Email, user.EmailVerified, user.TotpSecret, user.TotpEnabled, now, now,
 	)
 	return err
 }
@@ -25,10 +26,11 @@ func CreateUser(user *model.User) error {
 func GetUserByUsername(username string) (*model.User, error) {
 	user := &model.User{}
 	err := db.QueryRow(
-		`SELECT "id", "username", "password", "nickname", "role", "aiEnabled", "createdAt", "updatedAt"
+		`SELECT "id", "username", "password", "nickname", "role", "aiEnabled", "email", "emailVerified", "totpSecret", "totpEnabled", "createdAt", "updatedAt"
 		 FROM "User" WHERE "username" = ?`,
 		username,
-	).Scan(&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled,
+		&user.Email, &user.EmailVerified, &user.TotpSecret, &user.TotpEnabled, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -40,10 +42,11 @@ func GetUserByUsername(username string) (*model.User, error) {
 func GetUserByID(id string) (*model.User, error) {
 	user := &model.User{}
 	err := db.QueryRow(
-		`SELECT "id", "username", "password", "nickname", "role", "aiEnabled", "createdAt", "updatedAt"
+		`SELECT "id", "username", "password", "nickname", "role", "aiEnabled", "email", "emailVerified", "totpSecret", "totpEnabled", "createdAt", "updatedAt"
 		 FROM "User" WHERE "id" = ?`,
 		id,
-	).Scan(&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled,
+		&user.Email, &user.EmailVerified, &user.TotpSecret, &user.TotpEnabled, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -61,7 +64,7 @@ func CountUsers() (int, error) {
 // ListUsers returns all users (without password), ordered by creation time.
 func ListUsers() ([]model.AuthUser, error) {
 	rows, err := db.Query(
-		`SELECT "id", "username", "nickname", "role", "aiEnabled"
+		`SELECT "id", "username", "nickname", "role", "aiEnabled", "email", "emailVerified", "totpEnabled"
 		 FROM "User" ORDER BY "createdAt" ASC`,
 	)
 	if err != nil {
@@ -72,7 +75,8 @@ func ListUsers() ([]model.AuthUser, error) {
 	var users []model.AuthUser
 	for rows.Next() {
 		var u model.AuthUser
-		if err := rows.Scan(&u.ID, &u.Username, &u.Nickname, &u.Role, &u.AiEnabled); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.Nickname, &u.Role, &u.AiEnabled,
+			&u.Email, &u.EmailVerified, &u.TotpEnabled); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -149,14 +153,16 @@ func GetSessionWithUser(token string) (*model.UserSession, *model.User, error) {
 
 	err := db.QueryRow(
 		`SELECT s."id", s."userId", s."expiresAt", s."createdAt",
-		        u."id", u."username", u."password", u."nickname", u."role", u."aiEnabled", u."createdAt", u."updatedAt"
+		        u."id", u."username", u."password", u."nickname", u."role", u."aiEnabled",
+		        u."email", u."emailVerified", u."totpSecret", u."totpEnabled", u."createdAt", u."updatedAt"
 		 FROM "UserSession" s
 		 JOIN "User" u ON u."id" = s."userId"
 		 WHERE s."id" = ?`,
 		token,
 	).Scan(
 		&session.ID, &session.UserID, &session.ExpiresAt, &session.CreatedAt,
-		&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled, &user.CreatedAt, &user.UpdatedAt,
+		&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled,
+		&user.Email, &user.EmailVerified, &user.TotpSecret, &user.TotpEnabled, &user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {

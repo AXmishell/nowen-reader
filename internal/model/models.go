@@ -7,23 +7,75 @@ import "time"
 // ============================================================
 
 type User struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	Password  string    `json:"-"` // never expose in JSON
-	Nickname  string    `json:"nickname"`
-	Role      string    `json:"role"` // "admin" | "user"
-	AiEnabled bool      `json:"aiEnabled"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID            string    `json:"id"`
+	Username      string    `json:"username"`
+	Password      string    `json:"-"` // never expose in JSON
+	Nickname      string    `json:"nickname"`
+	Role          string    `json:"role"` // "admin" | "user"
+	AiEnabled     bool      `json:"aiEnabled"`
+	Email         string    `json:"email"`
+	EmailVerified bool      `json:"emailVerified"`
+	TotpSecret    string    `json:"-"` // never expose in JSON
+	TotpEnabled   bool      `json:"totpEnabled"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // AuthUser is the safe user representation returned to clients.
 type AuthUser struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Nickname  string `json:"nickname"`
-	Role      string `json:"role"`
-	AiEnabled bool   `json:"aiEnabled"`
+	ID            string `json:"id"`
+	Username      string `json:"username"`
+	Nickname      string `json:"nickname"`
+	Role          string `json:"role"`
+	AiEnabled     bool   `json:"aiEnabled"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"emailVerified"`
+	TotpEnabled   bool   `json:"totpEnabled"`
+}
+
+// EmailToken is a one-time code issued for email verification or email login.
+// Purpose is either "verify" (bind/confirm an email address) or "login".
+type EmailToken struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"userId"`
+	Email      string     `json:"email"`
+	Purpose    string     `json:"purpose"`
+	CodeHash   string     `json:"-"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	ConsumedAt *time.Time `json:"consumedAt"`
+	Attempts   int        `json:"attempts"`
+	CreatedAt  time.Time  `json:"createdAt"`
+}
+
+// TOTPRecoveryCode is a single-use fallback code for users with TOTP enabled.
+type TOTPRecoveryCode struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"userId"`
+	CodeHash  string     `json:"-"`
+	UsedAt    *time.Time `json:"usedAt"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
+// OIDCIdentity links a user to an external OpenID Connect issuer + subject pair.
+type OIDCIdentity struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"userId"`
+	Issuer    string    `json:"issuer"`
+	Subject   string    `json:"subject"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// AuthChallenge is a short-lived server-side challenge tied to a user,
+// used to complete multi-step authentication flows (e.g. TOTP or OIDC).
+type AuthChallenge struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"userId"`
+	Purpose    string     `json:"purpose"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	ConsumedAt *time.Time `json:"consumedAt"`
+	CreatedAt  time.Time  `json:"createdAt"`
 }
 
 type UserSession struct {

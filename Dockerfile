@@ -120,6 +120,9 @@ RUN mkdir -p /data /app/comics /app/novels /app/.cache/thumbnails /app/.cache/pa
     chown -R appuser:appgroup /data /app /app/comics /app/novels /app/.cache
 
 # Environment defaults
+# NOWEN_SECRET_KEY is optional: it encrypts stored TOTP secrets and the OIDC
+# state cookie. When unset, the server generates one once at DATA_DIR/secret.key.
+# Keep that file across upgrades, or rotating the key invalidates enrolled TOTP.
 ENV GIN_MODE=release \
     PORT=3000 \
     DATABASE_URL=/data/nowen-reader.db \

@@ -149,17 +149,22 @@ func createTables() error {
 		// User
 		// ============================================================
 		`CREATE TABLE IF NOT EXISTS "User" (
-			"id"        TEXT NOT NULL PRIMARY KEY,
-			"username"  TEXT NOT NULL,
-			"password"  TEXT NOT NULL,
-			"nickname"  TEXT NOT NULL DEFAULT '',
-			"role"      TEXT NOT NULL DEFAULT 'user',
-			"aiEnabled" BOOLEAN NOT NULL DEFAULT 0,
-			"createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			"updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			"id"            TEXT NOT NULL PRIMARY KEY,
+			"username"      TEXT NOT NULL,
+			"password"      TEXT NOT NULL,
+			"nickname"      TEXT NOT NULL DEFAULT '',
+			"role"          TEXT NOT NULL DEFAULT 'user',
+			"aiEnabled"     BOOLEAN NOT NULL DEFAULT 0,
+			"email"         TEXT NOT NULL DEFAULT '',
+			"emailVerified" BOOLEAN NOT NULL DEFAULT 0,
+			"totpSecret"    TEXT NOT NULL DEFAULT '',
+			"totpEnabled"   BOOLEAN NOT NULL DEFAULT 0,
+			"createdAt"     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			"updatedAt"     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS "User_username_key" ON "User"("username")`,
 		`CREATE INDEX IF NOT EXISTS "User_username_idx" ON "User"("username")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email") WHERE "email" != ''`,
 
 		// ============================================================
 		// UserSession

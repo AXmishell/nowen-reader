@@ -106,7 +106,8 @@ func AuthenticateAPIKey(token string) (*model.APIKey, *model.User, error) {
 	err := db.QueryRow(
 		`SELECT k."id", k."userId", k."name", k."keyPrefix", k."secretHash",
 		        k."expiresAt", k."lastUsedAt", k."revokedAt", k."createdAt",
-		        u."id", u."username", u."password", u."nickname", u."role", u."aiEnabled", u."createdAt", u."updatedAt"
+		        u."id", u."username", u."password", u."nickname", u."role", u."aiEnabled",
+		        u."email", u."emailVerified", u."totpSecret", u."totpEnabled", u."createdAt", u."updatedAt"
 		 FROM "ApiKey" k
 		 JOIN "User" u ON u."id" = k."userId"
 		 WHERE k."id" = ?`,
@@ -114,7 +115,8 @@ func AuthenticateAPIKey(token string) (*model.APIKey, *model.User, error) {
 	).Scan(
 		&key.ID, &key.UserID, &key.Name, &key.KeyPrefix, &key.SecretHash,
 		&expiresAt, &lastUsedAt, &revokedAt, &key.CreatedAt,
-		&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled, &user.CreatedAt, &user.UpdatedAt,
+		&user.ID, &user.Username, &user.Password, &user.Nickname, &user.Role, &user.AiEnabled,
+		&user.Email, &user.EmailVerified, &user.TotpSecret, &user.TotpEnabled, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, ErrInvalidAPIKey

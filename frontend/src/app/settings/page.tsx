@@ -22,6 +22,7 @@ import {
   UserCog,
   Wand2,
   Shield,
+  ShieldCheck,
   Search,
   X,
   RefreshCw,
@@ -90,6 +91,11 @@ const NASDiagnosticsPanel = dynamic(
   { loading: LoadingSkeleton }
 );
 
+const AuthSecuritySettingsPanel = dynamic(
+  () => import("@/components/AuthSecuritySettingsPanel").then((mod) => mod.AuthSecuritySettingsPanel),
+  { loading: LoadingSkeleton }
+);
+
 /* ── 类型 ── */
 type SettingsTab =
   | "account"
@@ -100,6 +106,7 @@ type SettingsTab =
   | "libraries"
   | "user-groups"
   | "diagnostics"
+  | "auth-security"
   | "reader"
   | "about";
 
@@ -138,7 +145,7 @@ export default function SettingsPage() {
     "account",
     "reader",
     ...(isAdmin
-      ? ["site" as const, "ai" as const, "scan-rules" as const, "users" as const, "libraries" as const, "user-groups" as const, "diagnostics" as const]
+      ? ["site" as const, "ai" as const, "scan-rules" as const, "users" as const, "libraries" as const, "user-groups" as const, "diagnostics" as const, "auth-security" as const]
       : []),
     "about",
   ];
@@ -211,6 +218,7 @@ export default function SettingsPage() {
       tabs: [
         ...(isAdmin
           ? [
+              { id: "auth-security" as const, label: t.authSecurity?.tab || "认证与安全", icon: <ShieldCheck className="h-[18px] w-[18px]" />, desc: t.authSecurity?.tabDesc || "邮件、验证与单点登录", keywords: ["认证", "安全", "SMTP", "邮件", "邮箱验证", "TOTP", "两步验证", "OIDC", "单点登录", "SSO", "验证码", "auth", "security", "sso"] },
               { id: "diagnostics" as const, label: "系统诊断", icon: <Shield className="h-[18px] w-[18px]" />, desc: "环境检查、权限、工具", keywords: ["诊断", "检查", "权限", "diagnostics"] },
             ]
           : []),
@@ -273,6 +281,7 @@ export default function SettingsPage() {
       {activeTab === "libraries" && <LibraryManagementPanel />}
       {activeTab === "user-groups" && <UserGroupManagementPanel />}
       {activeTab === "diagnostics" && <NASDiagnosticsPanel />}
+      {activeTab === "auth-security" && <AuthSecuritySettingsPanel />}
       {activeTab === "reader" && <ReaderPreferencesPanel />}
       {activeTab === "about" && <AboutPanel />}
     </div>

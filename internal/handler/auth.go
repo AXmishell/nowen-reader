@@ -3,6 +3,8 @@ package handler
 import (
 	"log"
 	"net/http"
+	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +14,7 @@ import (
 	"github.com/nowen-reader/nowen-reader/internal/config"
 	"github.com/nowen-reader/nowen-reader/internal/middleware"
 	"github.com/nowen-reader/nowen-reader/internal/model"
+	"github.com/nowen-reader/nowen-reader/internal/service"
 	"github.com/nowen-reader/nowen-reader/internal/store"
 )
 
@@ -22,12 +25,97 @@ func NewAuthHandler() *AuthHandler {
 	return &AuthHandler{}
 }
 
+// authUserPayload builds the safe user object returned to clients on a
+// successful login (session or TOTP step-up).
+func authUserPayload(user *model.User) model.AuthUser {
+	return model.AuthUser{
+		ID:            user.ID,
+		Username:      user.Username,
+		Nickname:      user.Nickname,
+		Role:          user.Role,
+		AiEnabled:     user.AiEnabled,
+		Email:         user.Email,
+		EmailVerified: user.EmailVerified,
+		TotpEnabled:   user.TotpEnabled,
+	}
+}
+
+// mustSetupTotp reports whether admins are required to use TOTP but this admin
+// has not yet enrolled. It is a soft nudge: login still succeeds, because a hard
+// gate here would lock admins out before they can reach the enrollment screen.
+func mustSetupTotp(user *model.User) bool {
+	return config.GetTOTP().RequiredForAdmins && user.Role == "admin" && !user.TotpEnabled
+}
+
+// sessionOrChallenge is the outcome of starting a first-factor login: exactly
+// one of SessionToken or Challenge is set.
+type sessionOrChallenge struct {
+	SessionToken string
+	Challenge    *model.AuthChallenge
+}
+
+// beginSessionOrChallenge creates either a session for user (returning its
+// token) or, when the account has TOTP enabled, a short-lived challenge. It
+// writes no HTTP response so callers can choose between JSON and a redirect.
+func beginSessionOrChallenge(user *model.User) (*sessionOrChallenge, error) {
+	if user.TotpEnabled {
+		challenge := &model.AuthChallenge{
+			ID:        uuid.New().String(),
+			UserID:    user.ID,
+			Purpose:   authPurposeTOTP,
+			ExpiresAt: time.Now().Add(authChallengeTTL),
+		}
+		if err := store.CreateAuthChallenge(challenge); err != nil {
+			return nil, err
+		}
+		return &sessionOrChallenge{Challenge: challenge}, nil
+	}
+
+	token := uuid.New().String()
+	session := &model.UserSession{
+		ID:        token,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Duration(middleware.SessionMaxAge) * time.Second),
+	}
+	if err := store.CreateSession(session); err != nil {
+		return nil, err
+	}
+	return &sessionOrChallenge{SessionToken: token}, nil
+}
+
+// issueSessionOrTOTPChallenge writes the JSON login response for the API
+// clients. It returns true when a TOTP challenge was issued (no session
+// created); otherwise it creates the session, sets the cookie and returns false.
+func issueSessionOrTOTPChallenge(c *gin.Context, user *model.User) bool {
+	outcome, err := beginSessionOrChallenge(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+		return false
+	}
+	if outcome.Challenge != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"totpRequired": true,
+			"challengeId":  outcome.Challenge.ID,
+		})
+		return true
+	}
+
+	middleware.SetSessionCookie(c, outcome.SessionToken)
+	resp := gin.H{"user": authUserPayload(user)}
+	if mustSetupTotp(user) {
+		resp["mustSetupTotp"] = true
+	}
+	c.JSON(http.StatusOK, resp)
+	return false
+}
+
 // Register handles POST /api/auth/register
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 		Nickname string `json:"nickname"`
+		Email    string `json:"email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -77,6 +165,27 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 邮箱：策略要求时必须提供；提供时校验格式并拒绝重复。
+	email := strings.TrimSpace(req.Email)
+	if email != "" {
+		if _, err := mail.ParseAddress(email); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email address"})
+			return
+		}
+		emailUser, err := store.GetUserByEmail(email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+			return
+		}
+		if emailUser != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists"})
+			return
+		}
+	} else if config.IsEmailVerificationRequired() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
+		return
+	}
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), 10)
 	if err != nil {
@@ -102,11 +211,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Nickname:  nickname,
 		Role:      role,
 		AiEnabled: role == "admin", // 管理员默认启用 AI
+		Email:     email,           // EmailVerified 保持 false，待邮箱验证
 	}
 
 	if err := store.CreateUser(user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Registration failed"})
 		return
+	}
+
+	// 已配置邮件时下发验证码；发送失败只记录日志，不影响注册结果。
+	if user.Email != "" && service.IsConfigured() {
+		if err := createAndSendEmailCode(user.ID, user.Email, emailPurposeVerify); err != nil {
+			log.Printf("[auth] failed to send verification code to %s: %v", user.Email, err)
+		}
 	}
 
 	// Auto-login after registration
@@ -166,29 +283,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Create session
-	token := uuid.New().String()
-	session := &model.UserSession{
-		ID:        token,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(time.Duration(middleware.SessionMaxAge) * time.Second),
-	}
-	if err := store.CreateSession(session); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+	// 邮箱验证策略：普通用户未验证邮箱时禁止登录；管理员豁免，避免把自己锁在门外。
+	if config.IsEmailVerificationRequired() && user.Role != "admin" && !user.EmailVerified {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Email not verified"})
 		return
 	}
 
-	middleware.SetSessionCookie(c, token)
-
-	c.JSON(http.StatusOK, gin.H{
-		"user": model.AuthUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Role:      user.Role,
-			AiEnabled: user.AiEnabled,
-		},
-	})
+	issueSessionOrTOTPChallenge(c, user)
 }
 
 // Logout handles POST /api/auth/logout
@@ -367,6 +468,29 @@ func (h *AuthHandler) UpdateUser(c *gin.Context) {
 		}
 		if err := store.UpdateUserAiEnabled(req.UserID, req.AiEnabled); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update AI access"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true})
+
+	case "resetTotp":
+		if currentUser.Role != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
+			return
+		}
+		if req.UserID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
+			return
+		}
+		if err := store.UpdateUserTotpEnabled(req.UserID, false); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset two-factor authentication"})
+			return
+		}
+		if err := store.UpdateUserTotpSecret(req.UserID, ""); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset two-factor authentication"})
+			return
+		}
+		if err := store.DeleteTOTPRecoveryCodesByUser(req.UserID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset two-factor authentication"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"success": true})
