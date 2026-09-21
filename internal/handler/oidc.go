@@ -2,6 +2,9 @@ package handler
 
 import (
 	"crypto/subtle"
+	"encoding/json"
+	"html"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -51,9 +54,33 @@ func oidcAppRoot() string {
 	return base + "/"
 }
 
+// redirectSelfDriven sends a 302 with a Location header AND a tiny HTML body
+// that navigates itself (meta refresh + JS). Some reverse proxies and embedded
+// browsers render a redirect's response body instead of following the
+// redirect, which leaves the user on a page showing only Go's default
+// "Found" link; a self-driving body removes that extra click.
+func redirectSelfDriven(c *gin.Context, location string) {
+	escaped := html.EscapeString(location)
+	// JS string literal（正确转义引号/反斜杠等），与 HTML 转义分开处理。
+	script, err := json.Marshal(location)
+	if err != nil {
+		script = []byte(`""`)
+	}
+
+	c.Header("Cache-Control", "no-store")
+	c.Header("Location", location)
+	c.Data(http.StatusFound, "text/html; charset=utf-8", []byte(
+		`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">`+
+			`<meta http-equiv="refresh" content="0;url=`+escaped+`">`+
+			`<title>正在跳转…</title></head><body>`+
+			`<script>location.replace(`+string(script)+`);</script>`+
+			`<p>正在跳转…若浏览器没有自动跳转，请<a href="`+escaped+`">点击继续</a>。</p>`+
+			`</body></html>`))
+}
+
 // redirectOIDCError sends the browser back to the SPA with a short error code.
 func redirectOIDCError(c *gin.Context, code string) {
-	c.Redirect(http.StatusFound, oidcAppRoot()+"?"+oidcErrorQueryKey+"="+url.QueryEscape(code))
+	redirectSelfDriven(c, oidcAppRoot()+"?"+oidcErrorQueryKey+"="+url.QueryEscape(code))
 }
 
 // completeOIDCLogin finishes the browser authorization-code flow. Because the
@@ -67,11 +94,11 @@ func completeOIDCLogin(c *gin.Context, user *model.User) {
 		return
 	}
 	if outcome.Challenge != nil {
-		c.Redirect(http.StatusFound, oidcAppRoot()+"?oidc=totp&challengeId="+url.QueryEscape(outcome.Challenge.ID))
+		redirectSelfDriven(c, oidcAppRoot()+"?oidc=totp&challengeId="+url.QueryEscape(outcome.Challenge.ID))
 		return
 	}
 	middleware.SetSessionCookie(c, outcome.SessionToken)
-	c.Redirect(http.StatusFound, oidcAppRoot()+"?oidc=ok")
+	redirectSelfDriven(c, oidcAppRoot()+"?oidc=ok")
 }
 
 // beginAuthorization generates and stores a fresh state/nonce/verifier triple,
@@ -79,6 +106,15 @@ func completeOIDCLogin(c *gin.Context, user *model.User) {
 func (h *OIDCHandler) beginAuthorization(c *gin.Context, linkUserID string) {
 	if !service.OIDCReady() {
 		c.JSON(http.StatusNotFound, gin.H{"error": "OIDC is not enabled"})
+		return
+	}
+
+	// 若身份提供商把 redirect_uri 配成了本端点（而不是
+	// /api/auth/oidc/callback），授权完成后浏览器会带着 code/state 回到这里。
+	// 此时若重新发起授权就会形成无限跳转循环，因此直接给出可诊断的错误。
+	if c.Query("code") != "" || c.Query("state") != "" || c.Query("error") != "" {
+		log.Printf("[oidc] %s received an authorization response; the provider's redirect URI must be /api/auth/oidc/callback, not this endpoint", c.Request.URL.Path)
+		redirectOIDCError(c, "wrong_endpoint")
 		return
 	}
 
@@ -119,7 +155,7 @@ func (h *OIDCHandler) beginAuthorization(c *gin.Context, linkUserID string) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to reach the OIDC provider"})
 		return
 	}
-	c.Redirect(http.StatusFound, authURL)
+	redirectSelfDriven(c, authURL)
 }
 
 // Providers handles GET /api/auth/oidc/providers. It is public so the login

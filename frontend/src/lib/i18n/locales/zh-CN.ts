@@ -502,6 +502,7 @@ const zhCN = {
     oidcErrorProvider: "无法连接身份提供商，请检查配置",
     oidcErrorCode: "身份提供商未返回授权码，请重新尝试",
     oidcErrorInternal: "服务内部错误，请稍后再试",
+    oidcErrorWrongEndpoint: "身份提供商回调地址配置有误：Redirect URI 必须填写回调地址 /api/auth/oidc/callback，而不是当前页面地址",
     oidcErrorGeneric: "单点登录失败，请重试或使用其他方式登录",
     totpAdminNotice: "管理员已要求启用两步验证，请尽快在账户设置中完成配置",
     operationFailed: "操作失败，请重试",
@@ -2007,6 +2008,7 @@ export interface Translations {
     oidcErrorProvider: string;
     oidcErrorCode: string;
     oidcErrorInternal: string;
+    oidcErrorWrongEndpoint: string;
     oidcErrorGeneric: string;
     totpAdminNotice: string;
     operationFailed: string;

@@ -505,6 +505,8 @@ const en: Translations = {
     oidcErrorProvider: "Could not reach the identity provider, please check the configuration",
     oidcErrorCode: "The identity provider did not return an authorization code, please try again",
     oidcErrorInternal: "Internal server error, please try again later",
+    oidcErrorWrongEndpoint:
+      "The identity provider's redirect URI is misconfigured: it must be the callback endpoint /api/auth/oidc/callback, not the current page",
     oidcErrorGeneric: "Single sign-on failed. Please retry or use another sign-in method",
     totpAdminNotice: "Administrators are required to enable two-factor authentication. Please set it up in account settings soon.",
     operationFailed: "Operation failed, please try again",

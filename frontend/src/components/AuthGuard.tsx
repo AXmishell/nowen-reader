@@ -289,6 +289,7 @@ function LoginPage({ initialChallengeId = "", initialOidcError = null }: {
     provider: t.auth.oidcErrorProvider,
     code: t.auth.oidcErrorCode,
     internal: t.auth.oidcErrorInternal,
+    wrong_endpoint: t.auth.oidcErrorWrongEndpoint,
   };
   const oidcErrorMessage = oidcErrorCode
     ? (oidcErrorMessages[oidcErrorCode] || t.auth.oidcErrorGeneric)
