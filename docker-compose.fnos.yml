@@ -75,6 +75,8 @@ services:
       # - BASE_PATH=/reader
       # 仅在可信反向代理后启用
       # - TRUST_PROXY_HEADERS=true
+      # 认证密钥（可选）：加密 TOTP 密钥与 OIDC state Cookie。留空时自动生成到 DATA_DIR/secret.key；轮换会导致已绑定的双因素失效
+      # - NOWEN_SECRET_KEY=change-me
       # 时区设置（中国用户无需修改）
       - TZ=Asia/Shanghai
       # 文件权限映射（设置为你飞牛 NAS 文件的 UID:GID，解决 permission denied 问题）
