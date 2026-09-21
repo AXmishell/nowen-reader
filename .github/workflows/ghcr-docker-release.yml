@@ -1,22 +1,20 @@
 name: Release Docker Image (GHCR)
 
-# 打 tag（v*）时自动构建并推送多架构 Docker 镜像到 GitHub Container Registry (GHCR)。
+# 仅手动触发：在 Actions 页面选择「Release Docker Image (GHCR)」→ Run workflow，
+# 填入要发布的 tag（例如 v1.3.0），即可构建并推送多架构镜像到 GitHub Container Registry (GHCR)。
 # 命名与 release.sh 保持一致：镜像标签为 v 前缀（如 ghcr.io/<owner>/nowen-reader:v1.3.0），
 # 非预发布版本额外打 :latest，预发布版本（含 - 后缀，如 v1.3.0-rc.1）不打 :latest。
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: '要构建的 tag（例如 v1.3.0）'
+        description: '要发布的 tag（例如 v1.3.0），需已存在于仓库'
         required: true
         type: string
 
-# 同一 ref 的发布不允许并发推送；中断中的发布不取消，避免推到一半。
+# 同一 tag 的发布不允许并发推送；中断中的发布不取消，避免推到一半。
 concurrency:
-  group: docker-release-${{ github.ref }}
+  group: docker-release-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -31,22 +29,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # 手动发布指定 tag 时按该 tag 构建，保证镜像内容与 tag 完全一致
+          ref: ${{ inputs.tag }}
 
       - name: Resolve version and image tags
         id: version
         env:
-          # 通过 env 传参，避免把事件/输入直接插值进 shell 脚本
-          EVENT_NAME: ${{ github.event_name }}
+          # 通过 env 传参，避免把输入直接插值进 shell 脚本
           INPUT_TAG: ${{ inputs.tag }}
-          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
-          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
-            RAW="${INPUT_TAG}"
-          else
-            RAW="${REF_NAME}"
-          fi
+          RAW="${INPUT_TAG}"
 
           # 去除可选的 v 前缀后校验，再统一加回 v（与 release.sh 一致）
           VERSION="${RAW#v}"
