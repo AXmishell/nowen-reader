@@ -320,6 +320,9 @@ class AuthUser {
   final String nickname;
   final String role;
   final bool aiEnabled;
+  final String email;
+  final bool emailVerified;
+  final bool totpEnabled;
 
   const AuthUser({
     required this.id,
@@ -327,6 +330,9 @@ class AuthUser {
     this.nickname = '',
     required this.role,
     this.aiEnabled = false,
+    this.email = '',
+    this.emailVerified = false,
+    this.totpEnabled = false,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -336,6 +342,9 @@ class AuthUser {
       nickname: json['nickname']?.toString() ?? '',
       role: json['role']?.toString() ?? 'user',
       aiEnabled: json['aiEnabled'] == true,
+      email: json['email']?.toString() ?? '',
+      emailVerified: json['emailVerified'] == true,
+      totpEnabled: json['totpEnabled'] == true,
     );
   }
 

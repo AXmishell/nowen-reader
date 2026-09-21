@@ -12,7 +12,11 @@ class AppShell extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith('/search')) return 1;
     if (location.startsWith('/stats')) return 2;
-    if (location.startsWith('/settings')) return 3;
+    if (location.startsWith('/settings') ||
+        location.startsWith('/security') ||
+        location.startsWith('/auth-security')) {
+      return 3;
+    }
     return 0;
   }
 

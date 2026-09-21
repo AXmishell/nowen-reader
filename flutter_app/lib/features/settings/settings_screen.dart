@@ -224,6 +224,13 @@ class SettingsScreen extends ConsumerWidget {
                   subtitle: '电子书类型识别策略等',
                   onTap: () => context.push('/site-settings'),
                 ),
+                _SettingsTile(
+                  icon: Icons.security_rounded,
+                  iconColor: Colors.redAccent,
+                  title: l10n.authSecurity,
+                  subtitle: l10n.authSecurityDesc,
+                  onTap: () => context.push('/auth-security'),
+                ),
               ],
             ),
           ],
@@ -257,6 +264,13 @@ class SettingsScreen extends ConsumerWidget {
           // ─── 账户操作 ───
           _SettingsGroup(
             children: [
+              _SettingsTile(
+                icon: Icons.shield_outlined,
+                iconColor: cs.primary,
+                title: l10n.accountSecurity,
+                subtitle: l10n.accountSecurityDesc,
+                onTap: () => context.push('/security'),
+              ),
               _SettingsTile(
                 icon: Icons.logout_rounded,
                 iconColor: cs.error,

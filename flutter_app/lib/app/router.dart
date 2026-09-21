@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/providers/auth_provider.dart';
+import '../features/account/security_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/cache/cache_screen.dart';
 import '../features/collections/collections_screen.dart';
@@ -17,6 +18,7 @@ import '../features/reader/reader_dispatch_screen.dart';
 import '../features/scan_rules/scan_rules_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/server/server_config_screen.dart';
+import '../features/settings/auth_security_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/site_settings_screen.dart';
 import '../features/shell/app_shell.dart';
@@ -141,6 +143,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: SettingsScreen()),
+          ),
+          GoRoute(
+            path: '/security',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: SecurityScreen()),
+          ),
+          GoRoute(
+            path: '/auth-security',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: AuthSecurityScreen()),
           ),
         ],
       ),

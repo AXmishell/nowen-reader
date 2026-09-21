@@ -211,12 +211,19 @@ class _AuthInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 401 && !_isHandling401) {
       _isHandling401 = true;
-      // 排除登录/注册/健康检查等不需要认证的接口
+      // 排除登录/注册/健康检查等不需要认证的接口。
+      //
+      // 这里还必须排除「建立会话之前」的接口：验证码登录与 TOTP 校验在验证码
+      // 错误时会返回 401，这是尚未登录时的预期失败，而不是会话过期。若把它们
+      // 当作会话失效，就会清空 Cookie 并触发重新登录。
       final path = err.requestOptions.path;
       if (!path.contains('/auth/login') &&
           !path.contains('/auth/register') &&
           !path.contains('/auth/me') &&
-          !path.contains('/health')) {
+          !path.contains('/health') &&
+          !path.contains('/auth/email/login') &&
+          !path.contains('/auth/email/verify') &&
+          !path.contains('/auth/totp/verify')) {
         print('[API] Session expired or invalid, triggering re-login...');
         _client.onUnauthorized?.call();
       }
