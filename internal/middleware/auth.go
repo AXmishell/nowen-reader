@@ -262,11 +262,14 @@ func setAuthenticatedUser(c *gin.Context, user *model.AuthUser, credential Reque
 
 func authUserFromModel(user *model.User) *model.AuthUser {
 	return &model.AuthUser{
-		ID:        user.ID,
-		Username:  user.Username,
-		Nickname:  user.Nickname,
-		Role:      user.Role,
-		AiEnabled: user.AiEnabled,
+		ID:            user.ID,
+		Username:      user.Username,
+		Nickname:      user.Nickname,
+		Role:          user.Role,
+		AiEnabled:     user.AiEnabled,
+		Email:         user.Email,
+		EmailVerified: user.EmailVerified,
+		TotpEnabled:   user.TotpEnabled,
 	}
 }
 

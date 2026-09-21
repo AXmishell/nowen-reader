@@ -47,6 +47,8 @@ https://example.com/reader/api/opds
 | POST | `/api/auth/email/send` | 发送邮箱验证码 / 登录验证码（限流） |
 | POST | `/api/auth/email/verify` | 校验邮箱验证码（限流） |
 | POST | `/api/auth/email/login` | 邮箱验证码登录（限流） |
+| POST | `/api/auth/email/bind/send` | 为当前登录用户发送绑定新邮箱的验证码 🔒浏览器会话 |
+| POST | `/api/auth/email/bind/verify` | 校验验证码并将邮箱绑定到当前用户 🔒浏览器会话 |
 | POST | `/api/auth/totp/setup` | 开始绑定 TOTP 双因素 🔒浏览器会话 |
 | POST | `/api/auth/totp/enable` | 确认并启用 TOTP，返回恢复码 🔒浏览器会话 |
 | POST | `/api/auth/totp/disable` | 关闭 TOTP 双因素 🔒浏览器会话 |
@@ -158,6 +160,46 @@ Content-Type: application/json
 ```
 
 `mustSetupTotp` 只是提示，不会阻止访问；客户端应引导管理员前往「认证与安全」完成绑定。
+
+> **邮箱验证登录门禁**：当 `emailVerificationRequired=true` 时，只有**已填写邮箱但尚未验证**的普通账号会被拒绝登录（`403`，`{"error": "Email not verified"}`）。
+> 管理员始终豁免；**邮箱为空的旧账号（legacy）同样放行**——否则这些用户永远无法登录，也就无法进入账户面板自助绑定邮箱（见下节）。
+
+### 自助绑定邮箱
+
+已登录用户可以用验证码证明对新邮箱的所有权，从而把该邮箱绑定为自己的账号邮箱（绑定成功即标记为已验证）。接口仅接受浏览器会话 Cookie，不接受 API Key，且不要求管理员权限。
+
+> 当前流程仅依赖验证码校验。绑定前额外要求输入账户密码是未来可选的加固方向，目前未启用，以便旧账号也能自助绑定。
+
+发送绑定验证码：
+
+```http
+POST /api/auth/email/bind/send
+Content-Type: application/json
+
+{"email": "new@example.com"}
+```
+
+- 需要登录会话；未登录返回 `401`。
+- 请求体非法或邮箱格式错误返回 `400`（`{"error": "Invalid email address"}`）。
+- 未配置 SMTP 返回 `503`（`{"error": "SMTP 未配置"}`）。
+- 该邮箱已被**其他**账号占用返回 `400`（`{"error": "Email already exists"}`）；绑定到当前用户自己的邮箱是允许的。
+- 验证码仅发送到新邮箱，有效期 10 分钟；成功返回 `{"success": true}`，存储或发送失败返回 `500`。
+
+校验并绑定：
+
+```http
+POST /api/auth/email/bind/verify
+Content-Type: application/json
+
+{"email": "new@example.com", "code": "123456"}
+```
+
+- 需要登录会话；未登录返回 `401`。
+- 邮箱格式错误或验证码为空返回 `400`（`{"error": "Invalid request"}`）。
+- 验证码不存在、已过期或错误返回 `400`（`{"error": "Invalid or expired code"}`）；错误会累加尝试次数，达到 5 次返回 `429`。
+- 验证码不属于当前登录用户（防止消费他人绑定令牌）返回 `400`。
+- 校验通过后若该邮箱已被其他账号占用，返回 `400`（`{"error": "Email already exists"}`），且不消费该令牌。
+- 成功时消费令牌并将当前用户的邮箱更新为该地址、`emailVerified=true`，返回 `{"success": true}`。
 
 ### 邮箱验证与邮箱验证码登录
 

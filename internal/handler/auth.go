@@ -241,13 +241,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	middleware.SetSessionCookie(c, token)
 
 	c.JSON(http.StatusOK, gin.H{
-		"user": model.AuthUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Role:      user.Role,
-			AiEnabled: user.AiEnabled,
-		},
+		"user": authUserPayload(user),
 	})
 }
 
@@ -283,8 +277,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 邮箱验证策略：普通用户未验证邮箱时禁止登录；管理员豁免，避免把自己锁在门外。
-	if config.IsEmailVerificationRequired() && user.Role != "admin" && !user.EmailVerified {
+	// 邮箱验证策略：仅当账号已填写邮箱但尚未验证时才禁止登录。
+	// 管理员豁免以避免把自己锁在门外；未填写邮箱的旧账号（email 为空）同样放行，
+	// 否则这些用户永远无法登录并进入账户面板自助绑定邮箱。
+	if config.IsEmailVerificationRequired() && user.Role != "admin" && user.Email != "" && !user.EmailVerified {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Email not verified"})
 		return
 	}
@@ -604,12 +600,6 @@ func (h *AuthHandler) CreateUserByAdmin(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"user": model.AuthUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Nickname:  user.Nickname,
-			Role:      user.Role,
-			AiEnabled: user.AiEnabled,
-		},
+		"user":    authUserPayload(user),
 	})
 }

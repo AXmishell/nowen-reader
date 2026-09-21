@@ -70,8 +70,11 @@ func SendTestEmail(to string) error {
 func verificationCodeContent(purpose, code string) (subject, textBody, htmlBody string) {
 	siteName := config.GetSiteName()
 	action := "邮箱验证"
-	if purpose == "login" {
+	switch purpose {
+	case "login":
 		action = "登录验证码"
+	case "bind":
+		action = "邮箱绑定"
 	}
 
 	subject = fmt.Sprintf("[%s] %s", siteName, action)

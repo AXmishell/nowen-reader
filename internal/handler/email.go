@@ -27,6 +27,7 @@ const (
 	emailCodeMaxAttempts = 5
 	emailPurposeVerify   = "verify"
 	emailPurposeLogin    = "login"
+	emailPurposeBind     = "bind"
 )
 
 // EmailHandler handles email verification and email-code login endpoints.

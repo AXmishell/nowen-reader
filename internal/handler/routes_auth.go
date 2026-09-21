@@ -24,6 +24,11 @@ func registerAuthRoutes(api *gin.RouterGroup) {
 		authGroup.POST("/email/send", middleware.RateLimitAuth(), email.SendCode)
 		authGroup.POST("/email/verify", middleware.RateLimitAuth(), email.VerifyCode)
 		authGroup.POST("/email/login", middleware.RateLimitAuth(), email.LoginWithCode)
+		// Self-service email binding for the logged-in user. Session-only, and
+		// deliberately NOT under AdminRequired: every account must be able to
+		// bind an email. The /auth/users group is admin-gated, so these live here.
+		authGroup.POST("/email/bind/send", middleware.SessionRequired(), middleware.RateLimitAuth(), email.BindSend)
+		authGroup.POST("/email/bind/verify", middleware.SessionRequired(), middleware.RateLimitAuth(), email.BindVerify)
 		// TOTP two-factor enrollment (session required) and login step-up (challenge-based)
 		authGroup.POST("/totp/setup", middleware.SessionRequired(), totp.Setup)
 		authGroup.POST("/totp/enable", middleware.SessionRequired(), totp.Enable)
@@ -43,13 +48,20 @@ func registerAuthRoutes(api *gin.RouterGroup) {
 		authGroup.GET("/me", auth.Me)
 	}
 
+	// PUT /auth/users carries BOTH self-service actions (changePassword /
+	// updateProfile) and admin-only actions (updateRole / updateAiEnabled /
+	// resetTotp); each case performs its own role check. It therefore must NOT
+	// sit behind AdminRequired, otherwise regular users could not change their
+	// own password or nickname. The remaining routes stay admin-gated.
 	usersGroup := api.Group("/auth/users")
-	usersGroup.Use(middleware.AdminRequired())
+	usersGroup.PUT("", auth.UpdateUser)
+
+	adminUsersGroup := api.Group("/auth/users")
+	adminUsersGroup.Use(middleware.AdminRequired())
 	{
-		usersGroup.GET("", auth.ListUsers)
-		usersGroup.POST("", auth.CreateUserByAdmin)
-		usersGroup.PUT("", auth.UpdateUser)
-		usersGroup.DELETE("", auth.DeleteUserHandler)
+		adminUsersGroup.GET("", auth.ListUsers)
+		adminUsersGroup.POST("", auth.CreateUserByAdmin)
+		adminUsersGroup.DELETE("", auth.DeleteUserHandler)
 	}
 
 	apiKeyGroup := api.Group("/auth/api-keys")

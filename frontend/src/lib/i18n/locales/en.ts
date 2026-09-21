@@ -1468,7 +1468,7 @@ const en: Translations = {
   accountSecurity: {
     // Email
     emailTitle: "Email",
-    emailDesc: "Used for sign-in verification and account recovery. Contact an administrator to change it.",
+    emailDesc: "Used for sign-in verification and account recovery; you can bind or change it here yourself.",
     emailVerified: "Verified",
     emailUnverified: "Unverified",
     emailMissing: "No email is set for this account",
@@ -1482,6 +1482,16 @@ const en: Translations = {
     emailVerifying: "Verifying",
     emailVerifySuccess: "Email verified successfully",
     emailVerifyFailed: "Email verification failed",
+    // Email binding / change
+    emailBind: "Bind email",
+    emailChange: "Change email",
+    emailBindHint: "Enter a new address; a verification code will be sent to it, and the email is bound once the code is confirmed.",
+    emailBindNewLabel: "New email",
+    emailBindNewPlaceholder: "Enter the new email address",
+    emailBindSend: "Send code to new email",
+    emailBindConfirm: "Confirm binding",
+    emailBindSuccess: "Email bound successfully",
+    emailBindFailed: "Failed to bind the email",
     // Two-factor authentication
     totpTitle: "Two-Factor Authentication",
     totpDesc: "Add a second layer of protection with one-time codes from an authenticator app.",

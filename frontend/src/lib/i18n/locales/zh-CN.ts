@@ -1465,7 +1465,7 @@ autoDetect: "智能合集",
   accountSecurity: {
     // 邮箱
     emailTitle: "邮箱",
-    emailDesc: "用于登录验证与账户找回，修改邮箱请联系管理员。",
+    emailDesc: "用于登录验证与账户找回，可自行绑定或更换邮箱。",
     emailVerified: "已验证",
     emailUnverified: "未验证",
     emailMissing: "当前账户未设置邮箱",
@@ -1479,6 +1479,16 @@ autoDetect: "智能合集",
     emailVerifying: "验证中",
     emailVerifySuccess: "邮箱验证成功",
     emailVerifyFailed: "邮箱验证失败",
+    // 邮箱绑定 / 更换
+    emailBind: "绑定邮箱",
+    emailChange: "更换邮箱",
+    emailBindHint: "输入新邮箱后，验证码将发送到该地址，验证通过即完成绑定。",
+    emailBindNewLabel: "新邮箱",
+    emailBindNewPlaceholder: "请输入新邮箱地址",
+    emailBindSend: "向新邮箱发送验证码",
+    emailBindConfirm: "确认绑定",
+    emailBindSuccess: "邮箱绑定成功",
+    emailBindFailed: "邮箱绑定失败",
     // 两步验证
     totpTitle: "两步验证",
     totpDesc: "使用验证器应用生成一次性验证码，为登录增加第二重保护。",
@@ -2923,6 +2933,16 @@ export interface Translations {
     emailVerifying: string;
     emailVerifySuccess: string;
     emailVerifyFailed: string;
+    // 邮箱绑定 / 更换
+    emailBind: string;
+    emailChange: string;
+    emailBindHint: string;
+    emailBindNewLabel: string;
+    emailBindNewPlaceholder: string;
+    emailBindSend: string;
+    emailBindConfirm: string;
+    emailBindSuccess: string;
+    emailBindFailed: string;
     // 两步验证
     totpTitle: string;
     totpDesc: string;

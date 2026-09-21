@@ -60,6 +60,23 @@ export async function loginWithEmailCode(email: string, code: string): Promise<A
 }
 
 // ============================================================
+// Self-service email binding / change (signed-in session)
+// ============================================================
+
+/**
+ * Sends a verification code to an address the signed-in user wants to bind.
+ * Requires a browser session; the address must not belong to another account.
+ */
+export async function sendEmailBindCode(email: string): Promise<void> {
+  await apiClient.post<{ success: boolean }>("/api/auth/email/bind/send", { email });
+}
+
+/** Confirms the code and sets the signed-in user's email (marked verified). */
+export async function verifyEmailBind(email: string, code: string): Promise<void> {
+  await apiClient.post<{ success: boolean }>("/api/auth/email/bind/verify", { email, code });
+}
+
+// ============================================================
 // TOTP two-factor authentication
 // ============================================================
 
