@@ -89,26 +89,37 @@ func resolveOIDCProvider(ctx context.Context, cfg config.OIDCConfig) (*oidc.Prov
 	return provider, verifier, nil
 }
 
-// oidcOAuthConfig builds the OAuth2 client configuration for the current settings.
-func oidcOAuthConfig(cfg config.OIDCConfig, endpoint oauth2.Endpoint) oauth2.Config {
+// oidcOAuthConfig builds the OAuth2 client configuration for the current
+// settings. redirectURL must be the ABSOLUTE callback URL registered at the
+// provider: OIDC providers reject a relative redirect_uri, and the value must
+// match exactly between the authorization request and the token exchange.
+// When empty it falls back to the base-path-relative path, which is only useful
+// for local debugging.
+func oidcOAuthConfig(cfg config.OIDCConfig, endpoint oauth2.Endpoint, redirectURL string) oauth2.Config {
+	if strings.TrimSpace(redirectURL) == "" {
+		redirectURL = OIDCCallbackURL()
+	}
 	return oauth2.Config{
 		ClientID:     cfg.ClientID,
 		ClientSecret: cfg.ClientSecret,
 		Endpoint:     endpoint,
-		RedirectURL:  OIDCCallbackURL(),
+		RedirectURL:  redirectURL,
 		Scopes:       strings.Fields(cfg.Scopes),
 	}
 }
 
 // OIDCAuthCodeURL builds the provider authorization URL carrying the supplied
 // state and nonce together with the PKCE S256 challenge.
-func OIDCAuthCodeURL(state, nonce, codeVerifier string) (string, error) {
+//
+// redirectURL is the absolute callback URL the provider must redirect back to;
+// pass the same value to OIDCExchange so the token request matches.
+func OIDCAuthCodeURL(state, nonce, codeVerifier, redirectURL string) (string, error) {
 	cfg := config.GetOIDC()
 	provider, _, err := resolveOIDCProvider(context.Background(), cfg)
 	if err != nil {
 		return "", err
 	}
-	oauthCfg := oidcOAuthConfig(cfg, provider.Endpoint())
+	oauthCfg := oidcOAuthConfig(cfg, provider.Endpoint(), redirectURL)
 	return oauthCfg.AuthCodeURL(
 		state,
 		oauth2.SetAuthURLParam("nonce", nonce),
@@ -120,15 +131,18 @@ func OIDCAuthCodeURL(state, nonce, codeVerifier string) (string, error) {
 // ID token (issuer, audience, expiry and signature), returning the verified
 // token plus its decoded claims.
 //
+// redirectURL must be the same absolute callback URL that was sent with the
+// authorization request (RFC 6749 requires the token request to repeat it).
+//
 // The caller must still validate idToken.Nonce against the nonce it stored for
 // this round-trip, and must treat the claims as untrusted input.
-func OIDCExchange(ctx context.Context, code, codeVerifier string) (*oidc.IDToken, map[string]any, error) {
+func OIDCExchange(ctx context.Context, code, codeVerifier, redirectURL string) (*oidc.IDToken, map[string]any, error) {
 	cfg := config.GetOIDC()
 	provider, verifier, err := resolveOIDCProvider(ctx, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	oauthCfg := oidcOAuthConfig(cfg, provider.Endpoint())
+	oauthCfg := oidcOAuthConfig(cfg, provider.Endpoint(), redirectURL)
 
 	token, err := oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {

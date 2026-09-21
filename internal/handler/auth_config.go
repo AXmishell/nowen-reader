@@ -30,6 +30,12 @@ func absoluteCallbackURL(c *gin.Context, path string) string {
 		return path
 	}
 
+	// 显式配置的对外地址优先：反向代理未透传原始协议/主机时（例如 TLS 终止后
+	// 以 http 回源且不带 X-Forwarded-Proto），只有它能给出正确的 https 地址。
+	if base := config.PublicBaseURL(); base != "" {
+		return base + path
+	}
+
 	host := c.Request.Host
 	if config.TrustProxyHeaders() {
 		if forwarded := c.GetHeader("X-Forwarded-Host"); forwarded != "" {

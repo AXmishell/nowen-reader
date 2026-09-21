@@ -141,6 +141,7 @@ func TestAbsoluteCallbackURL(t *testing.T) {
 		proto      string
 		trustProxy bool
 		xfHost     string
+		publicURL  string
 		want       string
 	}{
 		{
@@ -191,6 +192,20 @@ func TestAbsoluteCallbackURL(t *testing.T) {
 			path: "/api/auth/oidc/callback",
 			want: "/api/auth/oidc/callback",
 		},
+		{
+			name:      "explicit public url wins over the request host",
+			path:      "/api/auth/oidc/callback",
+			host:      "internal:6680",
+			publicURL: "https://reader.example.com",
+			want:      "https://reader.example.com/api/auth/oidc/callback",
+		},
+		{
+			name:      "explicit public url keeps the sub-path and trims trailing slash",
+			path:      "/reader/api/auth/oidc/callback",
+			host:      "internal:6680",
+			publicURL: "https://reader.example.com/",
+			want:      "https://reader.example.com/reader/api/auth/oidc/callback",
+		},
 	}
 
 	gin.SetMode(gin.TestMode)
@@ -201,6 +216,8 @@ func TestAbsoluteCallbackURL(t *testing.T) {
 			} else {
 				t.Setenv("TRUST_PROXY_HEADERS", "false")
 			}
+			// 隔离宿主环境，避免 PUBLIC_URL 影响其余用例。
+			t.Setenv("PUBLIC_URL", tc.publicURL)
 
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			req := httptest.NewRequest(http.MethodGet, "/", nil)

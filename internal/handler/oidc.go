@@ -109,7 +109,11 @@ func (h *OIDCHandler) beginAuthorization(c *gin.Context, linkUserID string) {
 		return
 	}
 
-	authURL, err := service.OIDCAuthCodeURL(state, nonce, verifier)
+	// redirect_uri 必须是绝对地址，且与 IdP 白名单完全一致（授权请求与换取
+	// token 的请求必须用同一个值）。这里由当前请求推导；当反向代理未透传
+	// https 时，可用 PUBLIC_URL 显式指定对外地址。
+	redirectURI := absoluteCallbackURL(c, service.OIDCCallbackURL())
+	authURL, err := service.OIDCAuthCodeURL(state, nonce, verifier, redirectURI)
 	if err != nil {
 		h.clearStateCookie(c)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to reach the OIDC provider"})
@@ -182,7 +186,12 @@ func (h *OIDCHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	idToken, claims, err := service.OIDCExchange(c.Request.Context(), code, state.Verifier)
+	idToken, claims, err := service.OIDCExchange(
+		c.Request.Context(),
+		code,
+		state.Verifier,
+		absoluteCallbackURL(c, service.OIDCCallbackURL()),
+	)
 	if err != nil {
 		redirectOIDCError(c, "exchange")
 		return

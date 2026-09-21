@@ -60,6 +60,9 @@ services:
       # - BASE_PATH=/reader
       # 仅在可信反向代理后启用，用于 OPDS 生成正确的外部地址
       # - TRUST_PROXY_HEADERS=true
+      # 对外访问地址（可选但推荐）：反向代理未透传原始协议时必填，
+      # 用于生成 OIDC 回调等绝对地址（含协议与域名，末尾不要带 /）
+      # - PUBLIC_URL=https://reader.example.com
       # 认证密钥（可选）：加密 TOTP 密钥与 OIDC state Cookie。留空时自动生成到 DATA_DIR/secret.key；轮换会导致已绑定的双因素失效
       # - NOWEN_SECRET_KEY=change-me
       # 文件权限映射（设置为你 NAS/宿主机文件的 UID:GID，解决 permission denied 问题）

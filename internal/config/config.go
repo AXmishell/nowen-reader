@@ -49,6 +49,11 @@ type SiteConfig struct {
 	SMTPEnabled               *bool       `json:"smtpEnabled,omitempty"`               // 邮件功能总开关，默认 false
 	EmailVerificationRequired *bool       `json:"emailVerificationRequired,omitempty"` // 注册后是否必须邮箱验证，默认 false
 	EmailCodeLoginEnabled     *bool       `json:"emailCodeLoginEnabled,omitempty"`     // 是否允许邮箱验证码登录，默认 false
+
+	// PublicURL 对外访问的基准地址（含协议与域名，如 https://reader.example.com），
+	// 用于在反向代理未透传 X-Forwarded-Proto 时生成绝对回调地址。
+	// 留空时按当前请求的 Host / 协议推导。
+	PublicURL string `json:"publicUrl,omitempty"`
 }
 
 // StorageThresholdConfig 存储用量阈值（单位 MB）
@@ -823,6 +828,18 @@ func TrustProxyHeaders() bool {
 	value := strings.TrimSpace(os.Getenv("TRUST_PROXY_HEADERS"))
 	trusted, err := strconv.ParseBool(value)
 	return err == nil && trusted
+}
+
+// PublicBaseURL returns the externally reachable base URL (scheme + host, with
+// no trailing slash). It is used to build absolute URLs (e.g. the OIDC
+// redirect_uri) when a reverse proxy does not forward the original scheme and
+// host. PUBLIC_URL takes precedence over site-config.json; an empty result
+// means "derive the value from the current request".
+func PublicBaseURL() string {
+	if v := strings.TrimSpace(os.Getenv("PUBLIC_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return strings.TrimRight(strings.TrimSpace(loadSiteConfig().PublicURL), "/")
 }
 
 // JoinBasePath joins the BasePath with a relative or absolute subpath.
